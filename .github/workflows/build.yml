@@ -47,6 +47,52 @@ jobs:
       with:
         gradle-version: '8.9'
 
+    # Overwrites app/build.gradle to add the WorkManager background dependency
+    - name: Force Overwrite app/build.gradle
+      run: |
+        mkdir -p app
+        cat << 'EOF' > app/build.gradle
+        plugins {
+            id 'com.android.application'
+            id 'org.jetbrains.kotlin.android'
+        }
+
+        android {
+            namespace 'com.example.audiostreamer'
+            compileSdk 34
+
+            defaultConfig {
+                applicationId "com.example.audiostreamer"
+                minSdk 21
+                targetSdk 34
+                versionCode 1
+                versionName "1.0"
+            }
+
+            buildTypes {
+                release {
+                    minifyEnabled false
+                    proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                }
+            }
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_17
+                targetCompatibility JavaVersion.VERSION_17
+            }
+            kotlinOptions {
+                jvmTarget = '17'
+            }
+        }
+
+        dependencies {
+            implementation 'androidx.core:core-ktx:1.12.0'
+            implementation 'androidx.appcompat:appcompat:1.6.1'
+            implementation 'com.google.android.material:material:1.11.0'
+            implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+            implementation 'androidx.work:work-runtime-ktx:2.9.1'
+        }
+        EOF
+
     # Overwrites string definitions to rename the app to Herbdout Radio
     - name: Force Overwrite strings.xml
       run: |
@@ -110,7 +156,7 @@ jobs:
         </adaptive-icon>
         EOF
 
-    # Overwrites manifest settings to declare the updated app name and link the custom launcher icon
+    # Overwrites manifest settings to declare the updated app name, link the custom launcher icon, and add push notification permissions
     - name: Force Overwrite AndroidManifest.xml
       run: |
         mkdir -p app/src/main
@@ -121,6 +167,7 @@ jobs:
 
             <uses-permission android:name="android.permission.INTERNET" />
             <uses-permission android:name="android.permission.WAKE_LOCK" />
+            <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
             <application
                 android:allowBackup="true"
@@ -406,239 +453,4 @@ jobs:
                         app:layout_constraintRight_toRightOf="parent" />
 
                 </androidx.constraintlayout.widget.ConstraintLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Bottom Control Panel -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/playerCard"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginLeft="24dp"
-                android:layout_marginRight="24dp"
-                android:layout_marginBottom="24dp"
-                app:cardBackgroundColor="#0B0C0B"
-                app:strokeColor="#1A5EFF00"
-                app:strokeWidth="1dp"
-                app:cardCornerRadius="24dp"
-                app:layout_constraintBottom_toBottomOf="parent">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:padding="24dp">
-
-                    <TextView
-                        android:id="@+id/tvStatus"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="TAP PLAY TO TUNE IN"
-                        android:textColor="#888888"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
-                        android:gravity="center"
-                        android:layout_marginBottom="20dp"
-                        android:letterSpacing="0.05" />
-
-                    <!-- Play/Pause Button -->
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnPlay"
-                        android:layout_width="match_parent"
-                        android:layout_height="56dp"
-                        android:text="Listen"
-                        android:textColor="#000000"
-                        android:backgroundTint="#5EFF00"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        app:cornerRadius="28dp"
-                        android:elevation="4dp" />
-
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-        </androidx.constraintlayout.widget.ConstraintLayout>
-        EOF
-
-    # Overwrites MainActivity.kt with dynamic black status-bar colors
-    - name: Force Overwrite MainActivity.kt
-      run: |
-        mkdir -p app/src/main/java/com/example/audiostreamer
-        cat << 'EOF' > app/src/main/java/com/example/audiostreamer/MainActivity.kt
-        package com.example.audiostreamer
-
-        import android.media.AudioAttributes
-        import android.media.MediaPlayer
-        import android.os.Bundle
-        import android.view.View
-        import android.view.animation.AlphaAnimation
-        import android.view.animation.Animation
-        import android.view.animation.LinearInterpolator
-        import android.view.animation.RotateAnimation
-        import android.widget.Button
-        import android.widget.TextView
-        import androidx.appcompat.app.AppCompatActivity
-
-        class MainActivity : AppCompatActivity() {
-
-            private var mediaPlayer: MediaPlayer? = null
-            private var isStreamActive = false
-            private val streamUrl = "http://uk18freenew.listen2myradio.com:5784/stream"
-
-            private lateinit var btnPlay: Button
-            private lateinit var tvStatus: TextView
-            private lateinit var tvLiveStatus: TextView
-            private lateinit var liveDot: View
-            private lateinit var vinylRecord: View
-
-            private var rotateAnim: RotateAnimation? = null
-
-            override fun onCreate(savedInstanceState: Bundle?) {
-                super.onCreate(savedInstanceState)
-                
-                // Forces status bar at the very top of the screen to be black matching our OLED theme
-                window.statusBarColor = android.graphics.Color.parseColor("#080808")
-                window.navigationBarColor = android.graphics.Color.parseColor("#080808")
-
-                setContentView(R.layout.activity_main)
-
-                btnPlay = findViewById(R.id.btnPlay)
-                tvStatus = findViewById(R.id.tvStatus)
-                tvLiveStatus = findViewById(R.id.tvLiveStatus)
-                liveDot = findViewById(R.id.liveDot)
-                vinylRecord = findViewById(R.id.vinylRecord)
-
-                btnPlay.setOnClickListener {
-                    togglePlayback()
-                }
-            }
-
-            private fun togglePlayback() {
-                if (!isStreamActive) {
-                    startPlaying()
-                } else {
-                    stopPlaying()
-                }
-            }
-
-            private fun startPlaying() {
-                tvStatus.text = "CONNECTING..."
-                tvStatus.setTextColor(android.graphics.Color.parseColor("#888888"))
-                tvLiveStatus.text = "CONNECTING"
-                tvLiveStatus.setTextColor(android.graphics.Color.parseColor("#888888"))
-                btnPlay.isEnabled = false
-
-                try {
-                    mediaPlayer = MediaPlayer().apply {
-                        setAudioAttributes(
-                            AudioAttributes.Builder()
-                                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                                .setUsage(AudioAttributes.USAGE_MEDIA)
-                                .build()
-                        )
-                        setDataSource(streamUrl)
-                        setOnPreparedListener {
-                            it.start()
-                            isStreamActive = true
-                            btnPlay.text = "Pause"
-                            btnPlay.isEnabled = true
-                            
-                            tvStatus.text = "NOW PLAYING LIVE"
-                            tvStatus.setTextColor(android.graphics.Color.parseColor("#5EFF00"))
-                            
-                            tvLiveStatus.text = "LIVE"
-                            tvLiveStatus.setTextColor(android.graphics.Color.parseColor("#5EFF00"))
-                            
-                            // Start pulsing live dot in header
-                            liveDot.visibility = View.VISIBLE
-                            val blink = AlphaAnimation(0.3f, 1.0f).apply {
-                                duration = 800
-                                repeatMode = Animation.REVERSE
-                                repeatCount = Animation.INFINITE
-                            }
-                            liveDot.startAnimation(blink)
-
-                            // Start spinning the vinyl record
-                            startVinylRotation()
-                        }
-                        setOnErrorListener { _, _, _ ->
-                            tvStatus.text = "Radio is not broadcasting right now.\nPlease try again later."
-                            tvStatus.setTextColor(android.graphics.Color.parseColor("#EF4444")) // Red
-                            
-                            tvLiveStatus.text = "OFF AIR"
-                            tvLiveStatus.setTextColor(android.graphics.Color.parseColor("#EF4444"))
-                            
-                            resetPlayer()
-                            true
-                        }
-                        prepareAsync()
-                    }
-                } catch (e: Exception) {
-                    tvStatus.text = "Radio is not broadcasting right now.\nPlease try again later."
-                    tvStatus.setTextColor(android.graphics.Color.parseColor("#EF4444"))
-                    resetPlayer()
-                }
-            }
-
-            private fun stopPlaying() {
-                resetPlayer()
-                tvStatus.text = "TAP PLAY TO TUNE IN"
-                tvStatus.setTextColor(android.graphics.Color.parseColor("#888888"))
-                tvLiveStatus.text = "OFF AIR"
-                tvLiveStatus.setTextColor(android.graphics.Color.parseColor("#888888"))
-            }
-
-            private fun resetPlayer() {
-                mediaPlayer?.let {
-                    if (it.isPlaying) {
-                        it.stop()
-                    }
-                    it.release()
-                }
-                mediaPlayer = null
-                isStreamActive = false
-                btnPlay.text = "Listen"
-                btnPlay.isEnabled = true
-                
-                // Stop live dot animation
-                liveDot.clearAnimation()
-                liveDot.visibility = View.GONE
-
-                // Stop vinyl rotation
-                stopVinylRotation()
-            }
-
-            private fun startVinylRotation() {
-                if (rotateAnim == null) {
-                    rotateAnim = RotateAnimation(
-                        0f, 360f,
-                        Animation.RELATIVE_TO_SELF, 0.5f,
-                        Animation.RELATIVE_TO_SELF, 0.5f
-                    ).apply {
-                        duration = 5000 // 5 seconds per full rotation
-                        repeatCount = Animation.INFINITE
-                        interpolator = LinearInterpolator()
-                    }
-                }
-                vinylRecord.startAnimation(rotateAnim)
-            }
-
-            private fun stopVinylRotation() {
-                vinylRecord.clearAnimation()
-            }
-
-            override fun onDestroy() {
-                super.onDestroy()
-                resetPlayer()
-            }
-        }
-        EOF
-
-    - name: Build with Gradle
-      run: gradle assembleDebug --stacktrace
-
-    - name: Upload APK Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: App-Debug-APK
-        path: app/build/outputs/apk/debug/app-debug.apk
+            </com.google.android.material.card.Mate
