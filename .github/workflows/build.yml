@@ -46,7 +46,7 @@ jobs:
       uses: gradle/actions/setup-gradle@v4
       with:
         gradle-version: '8.9'
-        # Overwrites app/build.gradle to add the WorkManager background dependency
+        # Overwrites app/build.gradle to add WorkManager and Socket.io dependencies
     - name: Force Overwrite app/build.gradle
       shell: python
       run: |
@@ -91,6 +91,11 @@ jobs:
             implementation 'com.google.android.material:material:1.11.0'
             implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
             implementation 'androidx.work:work-runtime-ktx:2.9.1'
+            
+            // Native Socket.io engine (excludes org.json to prevent duplicate class compile conflicts)
+            implementation ('io.socket:socket.io-client:2.1.0') {
+                exclude group: 'org.json', module: 'json'
+            }
         }""")
 
     # Overwrites string definitions to rename the app to Herbdout Radio
@@ -237,7 +242,7 @@ jobs:
             <solid android:color="#5EFF00" />
         </shape>""")
 
-    # Overwrites the UI layout with the OLED design matching Image 2
+    # Overwrites the UI layout adding transparent floating emoji canvas and standard reaction buttons
     - name: Force Overwrite activity_main.xml
       shell: python
       run: |
@@ -455,6 +460,7 @@ jobs:
                         app:layout_constraintRight_toRightOf="parent"
                         android:layout_marginBottom="6dp" />
 
+                    <!-- Track Artist -->
                     <TextView
                         android:id="@+id/tvArtist"
                         android:layout_width="wrap_content"
@@ -471,7 +477,7 @@ jobs:
                 </androidx.constraintlayout.widget.ConstraintLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Bottom Control Panel -->
+            <!-- Bottom Control & Emoji Panel -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/playerCard"
                 android:layout_width="match_parent"
@@ -491,6 +497,47 @@ jobs:
                     android:orientation="vertical"
                     android:gravity="center"
                     android:padding="24dp">
+
+                    <!-- Live Emoji reaction buttons -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center"
+                        android:layout_marginBottom="20dp">
+
+                        <Button
+                            android:id="@+id/btnEmojiHeart"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="60dp"
+                            android:layout_height="50dp"
+                            android:text="❤️"
+                            android:textSize="22sp" />
+
+                        <Button
+                            android:id="@+id/btnEmojiFire"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="60dp"
+                            android:layout_height="50dp"
+                            android:text="🔥"
+                            android:textSize="22sp" />
+
+                        <Button
+                            android:id="@+id/btnEmojiCrown"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="60dp"
+                            android:layout_height="50dp"
+                            android:text="👑"
+                            android:textSize="22sp" />
+
+                        <Button
+                            android:id="@+id/btnEmojiStar"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="60dp"
+                            android:layout_height="50dp"
+                            android:text="⭐"
+                            android:textSize="22sp" />
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/tvStatus"
@@ -520,8 +567,18 @@ jobs:
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Full-screen transparent overlay container for floating emojis -->
+            <FrameLayout
+                android:id="@+id/emojiContainer"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:elevation="12dp"
+                android:clickable="false"
+                android:focusable="false" />
+
         </androidx.constraintlayout.widget.ConstraintLayout>""")
-        # Creates the silent background worker that checks stream connectivity and launches push notifications
+        
+# Creates the silent background worker that checks stream connectivity and launches push notifications
     - name: Create StreamCheckWorker.kt
       shell: python
       run: |
@@ -857,6 +914,7 @@ jobs:
         import android.view.animation.LinearInterpolator
         import android.view.animation.RotateAnimation
         import android.widget.Button
+        import android.widget.FrameLayout
         import android.widget.TextView
         import androidx.appcompat.app.AppCompatActivity
         import androidx.core.app.ActivityCompat
@@ -864,6 +922,8 @@ jobs:
         import androidx.work.ExistingPeriodicWorkPolicy
         import androidx.work.PeriodicWorkRequestBuilder
         import androidx.work.WorkManager
+        import io.socket.client.IO
+        import io.socket.client.Socket
         import java.util.concurrent.TimeUnit
 
         class MainActivity : AppCompatActivity() {
@@ -873,8 +933,13 @@ jobs:
             private lateinit var tvLiveStatus: TextView
             private lateinit var liveDot: View
             private lateinit var vinylRecord: View
+            private lateinit var emojiContainer: FrameLayout
 
             private var rotateAnim: RotateAnimation? = null
+            private var mSocket: Socket? = null
+            
+            // CHANGE THIS to your actual server.cjs Socket.io address (e.g., "http://your-server-domain.com:3000")
+            private val socketUrl = "http://uk18freenew.listen2myradio.com:3000"
 
             override fun onCreate(savedInstanceState: Bundle?) {
                 super.onCreate(savedInstanceState)
@@ -889,6 +954,7 @@ jobs:
                 tvLiveStatus = findViewById(R.id.tvLiveStatus)
                 liveDot = findViewById(R.id.liveDot)
                 vinylRecord = findViewById(R.id.vinylRecord)
+                emojiContainer = findViewById(R.id.emojiContainer)
 
                 btnPlay.setOnClickListener {
                     togglePlayback()
@@ -909,6 +975,12 @@ jobs:
 
                 // Run an initial UI state sync check
                 updateUIState()
+
+                // Establish Socket.io connection
+                setupSocketConnection()
+
+                // Set up local emoji button click listeners
+                setupEmojiButtons()
             }
 
             private fun checkAndRequestPermissions() {
@@ -934,6 +1006,74 @@ jobs:
                     ExistingPeriodicWorkPolicy.KEEP,
                     checkRequest
                 )
+            }
+
+            private fun setupSocketConnection() {
+                try {
+                    val opts = IO.Options().apply {
+                        forceNew = true
+                        reconnection = true
+                    }
+                    mSocket = IO.socket(socketUrl, opts)
+                    
+                    // Listen for emojis sent from other users or broadcaster
+                    mSocket?.on("new-emoji") { args ->
+                        if (args.isNotEmpty()) {
+                            val emoji = args[0] as? String
+                            if (emoji != null) {
+                                showFloatingEmoji(emoji)
+                            }
+                        }
+                    }
+                    
+                    mSocket?.connect()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            private fun setupEmojiButtons() {
+                findViewById<Button>(R.id.btnEmojiHeart).setOnClickListener { sendEmoji("❤️") }
+                findViewById<Button>(R.id.btnEmojiFire).setOnClickListener { sendEmoji("🔥") }
+                findViewById<Button>(R.id.btnEmojiCrown).setOnClickListener { sendEmoji("👑") }
+                findViewById<Button>(R.id.btnEmojiStar).setOnClickListener { sendEmoji("⭐") }
+            }
+
+            private fun sendEmoji(emoji: String) {
+                mSocket?.emit("send-emoji", emoji)
+            }
+
+            private fun showFloatingEmoji(emoji: String) {
+                runOnUiThread {
+                    val textView = TextView(this).apply {
+                        text = emoji
+                        textSize = 32f
+                        layoutParams = FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.WRAP_CONTENT,
+                            FrameLayout.LayoutParams.WRAP_CONTENT
+                        ).apply {
+                            gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
+                        }
+                    }
+
+                    emojiContainer.addView(textView)
+
+                    // Randomize horizontal starting point
+                    val randomX = (Math.random() * 300 - 150).toFloat()
+                    textView.translationX = randomX
+
+                    // Animate upwards, expand, and fade away
+                    textView.animate()
+                        .translationY(-1000f)
+                        .alpha(0f)
+                        .scaleX(1.4f)
+                        .scaleY(1.4f)
+                        .setDuration(2200)
+                        .withEndAction {
+                            emojiContainer.removeView(textView) // Auto cleanup
+                        }
+                        .start()
+                }
             }
 
             private fun togglePlayback() {
@@ -1046,6 +1186,8 @@ jobs:
             override fun onDestroy() {
                 super.onDestroy()
                 AudioService.listener = null
+                mSocket?.disconnect()
+                mSocket?.off("new-emoji")
             }
         }""")
 
