@@ -15,13 +15,11 @@ jobs:
 
     - name: Unzip Project Files
       run: |
-        # Find your zip file case-insensitively
         ZIP_FILE=$(find . -maxdepth 1 -iname "audiostreamer.zip" -print -quit)
         if [ -n "$ZIP_FILE" ]; then
           echo "Found zip file: $ZIP_FILE"
           unzip -o "$ZIP_FILE" -d temp_unzip
           
-          # Check if there is a nested folder with the same name inside the zip
           NESTED_DIR=$(find temp_unzip -maxdepth 1 -type d -iname "audiostreamer" -print -quit)
           if [ -n "$NESTED_DIR" ]; then
             echo "Moving files from nested directory: $NESTED_DIR"
@@ -49,8 +47,13 @@ jobs:
       with:
         gradle-version: '8.9'
 
+    # This creates the missing settings file dynamically to fix the build error
+    - name: Configure AndroidX Settings
+      run: |
+        echo "android.useAndroidX=true" > gradle.properties
+
     - name: Build with Gradle
-      run: gradle assembleDebug
+      run: gradle assembleDebug --stacktrace
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
