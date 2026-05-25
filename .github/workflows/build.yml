@@ -47,17 +47,84 @@ jobs:
       with:
         gradle-version: '8.9'
 
-    # Automatically creates/fixes the AndroidX settings
-    - name: Configure AndroidX Settings
+    # Overwrites app/build.gradle to add the WorkManager background dependency
+    - name: Force Overwrite app/build.gradle
+      shell: python
       run: |
-        echo "android.useAndroidX=true" > gradle.properties
+        import os
+        os.makedirs("app", exist_ok=True)
+        with open("app/build.gradle", "w") as f:
+            f.write("""plugins {
+            id 'com.android.application'
+            id 'org.jetbrains.kotlin.android'
+        }
+
+        android {
+            namespace 'com.example.audiostreamer'
+            compileSdk 34
+
+            defaultConfig {
+                applicationId "com.example.audiostreamer"
+                minSdk 21
+                targetSdk 34
+                versionCode 1
+                versionName "1.0"
+            }
+
+            buildTypes {
+                release {
+                    minifyEnabled false
+                    proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                }
+            }
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_17
+                targetCompatibility JavaVersion.VERSION_17
+            }
+            kotlinOptions {
+                jvmTarget = '17'
+            }
+        }
+
+        dependencies {
+            implementation 'androidx.core:core-ktx:1.12.0'
+            implementation 'androidx.appcompat:appcompat:1.6.1'
+            implementation 'com.google.android.material:material:1.11.0'
+            implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+            implementation 'androidx.work:work-runtime-ktx:2.9.1'
+        }""")
+
+    # Overwrites string definitions to rename the app to Herbdout Radio
+    - name: Force Overwrite strings.xml
+      shell: python
+      run: |
+        import os
+        os.makedirs("app/src/main/res/values", exist_ok=True)
+        with open("app/src/main/res/values/strings.xml", "w") as f:
+            f.write("""<resources>
+            <string name="app_name">Herbdout Radio</string>
+        </resources>""")
+
+    # Configures the colors file for the custom launcher background
+    - name: Create colors.xml
+      shell: python
+      run: |
+        import os
+        os.makedirs("app/src/main/res/values", exist_ok=True)
+        with open("app/src/main/res/values/colors.xml", "w") as f:
+            f.write("""<?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <color name="ic_launcher_background">#080808</color>
+        </resources>""")
 
     # Creates the launcher star icon foreground artwork
     - name: Create ic_star_logo_launcher drawable
+      shell: python
       run: |
-        mkdir -p app/src/main/res/drawable
-        cat << 'EOF' > app/src/main/res/drawable/ic_star_logo_launcher.xml
-        <vector xmlns:android="http://schemas.android.com/apk/res/android"
+        import os
+        os.makedirs("app/src/main/res/drawable", exist_ok=True)
+        with open("app/src/main/res/drawable/ic_star_logo_launcher.xml", "w") as f:
+            f.write("""<vector xmlns:android="http://schemas.android.com/apk/res/android"
             android:width="108dp"
             android:height="108dp"
             android:viewportWidth="108"
@@ -71,368 +138,30 @@ jobs:
                     android:fillColor="#5EFF00"
                     android:pathData="M12,0 L14.8,7.2 L22.1,4.5 L16.8,10.2 L24,12 L16.8,13.8 L22.1,19.5 L14.8,16.8 L12,24 L9.2,16.8 L1.9,19.5 L7.2,13.8 L0,12 L7.2,10.2 L1.9,4.5 L9.2,7.2 Z" />
             </group>
-        </vector>
-        EOF
+        </vector>""")
 
     # Creates adaptive launcher icons for compatibility across modern Android versions
     - name: Create adaptive launcher icons
+      shell: python
       run: |
-        mkdir -p app/src/main/res/mipmap-anydpi-v26
-        cat << 'EOF' > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
-        <?xml version="1.0" encoding="utf-8"?>
+        import os
+        os.makedirs("app/src/main/res/mipmap-anydpi-v26", exist_ok=True)
+        
+        ic_launcher_content = """<?xml version="1.0" encoding="utf-8"?>
         <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
             <background android:drawable="@color/ic_launcher_background"/>
             <foreground android:drawable="@drawable/ic_star_logo_launcher"/>
-        </adaptive-icon>
-        EOF
-
-        cat << 'EOF' > app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
-        <?xml version="1.0" encoding="utf-8"?>
-        <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-            <background android:drawable="@color/ic_launcher_background"/>
-            <foreground android:drawable="@drawable/ic_star_logo_launcher"/>
-        </adaptive-icon>
-        EOF
+        </adaptive-icon>"""
+        
+        with open("app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml", "w") as f:
+            f.write(ic_launcher_content)
+            
+        with open("app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml", "w") as f:
+            f.write(ic_launcher_content)
 
     # Overwrites manifest settings to declare the updated app name, link the custom launcher icon, and add push notification permissions
     - name: Force Overwrite AndroidManifest.xml
+      shell: python
       run: |
-        mkdir -p app/src/main
-        cat << 'EOF' > app/src/main/AndroidManifest.xml
-        <?xml version="1.0" encoding="utf-8"?>
-        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-            package="com.example.audiostreamer">
-
-            <uses-permission android:name="android.permission.INTERNET" />
-            <uses-permission android:name="android.permission.WAKE_LOCK" />
-            <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-            <application
-                android:allowBackup="true"
-                android:icon="@mipmap/ic_launcher"
-                android:roundIcon="@mipmap/ic_launcher_round"
-                android:label="@string/app_name"
-                android:supportsRtl="true"
-                android:theme="@style/Theme.AudioStreamer"
-                android:usesCleartextTraffic="true">
-                <activity
-                    android:name=".MainActivity"
-                    android:exported="true">
-                    <intent-filter>
-                        <action android:name="android.intent.action.MAIN" />
-                        <category android:name="android.intent.category.LAUNCHER" />
-                    </intent-filter>
-                </activity>
-            </application>
-
-        </manifest>
-        EOF
-
-    # Creates the precise 8-pointed electric green star logo
-    - name: Create ic_star_logo drawable
-      run: |
-        mkdir -p app/src/main/res/drawable
-        cat << 'EOF' > app/src/main/res/drawable/ic_star_logo.xml
-        <vector xmlns:android="http://schemas.android.com/apk/res/android"
-            android:width="24dp"
-            android:height="24dp"
-            android:viewportWidth="24"
-            android:viewportHeight="24">
-            <path
-                android:fillColor="#5EFF00"
-                android:pathData="M12,0 L14.8,7.2 L22.1,4.5 L16.8,10.2 L24,12 L16.8,13.8 L22.1,19.5 L14.8,16.8 L12,24 L9.2,16.8 L1.9,19.5 L7.2,13.8 L0,12 L7.2,10.2 L1.9,4.5 L9.2,7.2 Z" />
-        </vector>
-        EOF
-
-    # Creates a custom green circle drawable for the pulsing live dot
-    - name: Create green_dot drawable
-      run: |
-        mkdir -p app/src/main/res/drawable
-        cat << 'EOF' > app/src/main/res/drawable/green_dot.xml
-        <?xml version="1.0" encoding="utf-8"?>
-        <shape xmlns:android="http://schemas.android.com/apk/res/android"
-            android:shape="oval">
-            <solid android:color="#5EFF00" />
-        </shape>
-        EOF
-
-    # Overwrites the UI layout with the OLED design matching Image 2
-    - name: Force Overwrite activity_main.xml
-      run: |
-        mkdir -p app/src/main/res/layout
-        cat << 'EOF' > app/src/main/res/layout/activity_main.xml
-        <?xml version="1.0" encoding="utf-8"?>
-        <androidx.constraintlayout.widget.ConstraintLayout 
-            xmlns:android="http://schemas.android.com/apk/res/android"
-            xmlns:app="http://schemas.android.com/apk/res-auto"
-            xmlns:tools="http://schemas.android.com/tools"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="#080808"
-            tools:context=".MainActivity">
-
-            <!-- Top Branding Bar -->
-            <LinearLayout
-                android:id="@+id/topBar"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingLeft="24dp"
-                android:paddingRight="24dp"
-                android:paddingTop="24dp"
-                app:layout_constraintTop_toTopOf="parent">
-
-                <ImageView
-                    android:layout_width="44dp"
-                    android:layout_height="44dp"
-                    android:src="@drawable/ic_star_logo"
-                    android:contentDescription="Station Logo" />
-
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:layout_marginStart="14dp">
-
-                    <LinearLayout
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="HERBDOUT"
-                            android:textColor="#FFFFFF"
-                            android:textSize="22sp"
-                            android:textStyle="bold|italic" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="RADIO"
-                            android:textColor="#5EFF00"
-                            android:textSize="22sp"
-                            android:textStyle="bold|italic" />
-                    </LinearLayout>
-
-                    <!-- Status indicators -->
-                    <LinearLayout
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:layout_marginTop="2dp">
-
-                        <View
-                            android:id="@+id/liveDot"
-                            android:layout_width="6dp"
-                            android:layout_height="6dp"
-                            android:background="@drawable/green_dot"
-                            android:layout_marginEnd="6dp"
-                            android:visibility="gone" />
-
-                        <TextView
-                            android:id="@+id/tvLiveStatus"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="OFF AIR"
-                            android:textColor="#888888"
-                            android:textSize="11sp"
-                            android:textStyle="bold"
-                            android:letterSpacing="0.05" />
-                    </LinearLayout>
-
-                </LinearLayout>
-            </LinearLayout>
-
-            <!-- Centered Player Panel -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/recordCard"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_marginLeft="24dp"
-                android:layout_marginRight="24dp"
-                android:layout_marginTop="16dp"
-                android:layout_marginBottom="24dp"
-                app:cardBackgroundColor="#0B0C0B"
-                app:strokeColor="#1A5EFF00"
-                app:strokeWidth="1dp"
-                app:cardCornerRadius="24dp"
-                app:layout_constraintTop_toBottomOf="@id/topBar"
-                app:layout_constraintBottom_toTopOf="@id/playerCard">
-
-                <androidx.constraintlayout.widget.ConstraintLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:padding="24dp">
-
-                    <!-- Title: NOW PLAYING -->
-                    <TextView
-                        android:id="@+id/tvNowPlayingLabel"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="●  NOW PLAYING"
-                        android:textColor="#5EFF00"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
-                        android:letterSpacing="0.1"
-                        app:layout_constraintTop_toTopOf="parent"
-                        app:layout_constraintLeft_toLeftOf="parent"
-                        app:layout_constraintRight_toRightOf="parent" />
-
-                    <!-- Concentric Vinyl Record Container -->
-                    <androidx.constraintlayout.widget.ConstraintLayout
-                        android:id="@+id/vinylRecord"
-                        android:layout_width="220dp"
-                        android:layout_height="220dp"
-                        app:layout_constraintTop_toBottomOf="@id/tvNowPlayingLabel"
-                        app:layout_constraintBottom_toTopOf="@id/tvTrackTitle"
-                        app:layout_constraintLeft_toLeftOf="parent"
-                        app:layout_constraintRight_toRightOf="parent"
-                        app:layout_constraintVertical_bias="0.4">
-
-                        <!-- Outer Ring -->
-                        <com.google.android.material.card.MaterialCardView
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            app:cardCornerRadius="110dp"
-                            app:cardBackgroundColor="#0D0D0D"
-                            app:strokeColor="#335EFF00"
-                            app:strokeWidth="2dp"
-                            app:cardElevation="0dp" />
-
-                        <!-- Inner Circle 1 -->
-                        <com.google.android.material.card.MaterialCardView
-                            android:layout_width="180dp"
-                            android:layout_height="180dp"
-                            app:cardCornerRadius="90dp"
-                            app:cardBackgroundColor="#090909"
-                            app:strokeColor="#444444"
-                            app:strokeWidth="1dp"
-                            app:cardElevation="0dp"
-                            app:layout_constraintTop_toTopOf="parent"
-                            app:layout_constraintBottom_toBottomOf="parent"
-                            app:layout_constraintLeft_toLeftOf="parent"
-                            app:layout_constraintRight_toRightOf="parent" />
-
-                        <!-- Inner Circle 2 -->
-                        <com.google.android.material.card.MaterialCardView
-                            android:layout_width="140dp"
-                            android:layout_height="140dp"
-                            app:cardCornerRadius="70dp"
-                            app:cardBackgroundColor="#060606"
-                            app:strokeColor="#333333"
-                            app:strokeWidth="1dp"
-                            app:cardElevation="0dp"
-                            app:layout_constraintTop_toTopOf="parent"
-                            app:layout_constraintBottom_toBottomOf="parent"
-                            app:layout_constraintLeft_toLeftOf="parent"
-                            app:layout_constraintRight_toRightOf="parent" />
-
-                        <!-- Center Logo Label (Vinyl Center) -->
-                        <com.google.android.material.card.MaterialCardView
-                            android:layout_width="70dp"
-                            android:layout_height="70dp"
-                            app:cardCornerRadius="35dp"
-                            app:cardBackgroundColor="#121212"
-                            app:strokeColor="#5EFF00"
-                            app:strokeWidth="1.5dp"
-                            app:cardElevation="0dp"
-                            app:layout_constraintTop_toTopOf="parent"
-                            app:layout_constraintBottom_toBottomOf="parent"
-                            app:layout_constraintLeft_toLeftOf="parent"
-                            app:layout_constraintRight_toRightOf="parent" >
-
-                            <ImageView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:src="@drawable/ic_star_logo"
-                                android:padding="16dp"
-                                android:contentDescription="Star logo center" />
-                        </com.google.android.material.card.MaterialCardView>
-
-                    </androidx.constraintlayout.widget.ConstraintLayout>
-
-                    <!-- Track metadata -->
-                    <TextView
-                        android:id="@+id/tvTrackTitle"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:text="LIVE STREAM BROADCAST"
-                        android:textColor="#FFFFFF"
-                        android:textSize="18sp"
-                        android:textStyle="bold"
-                        android:gravity="center"
-                        android:ellipsize="end"
-                        android:maxLines="1"
-                        app:layout_constraintBottom_toTopOf="@id/tvArtist"
-                        app:layout_constraintLeft_toLeftOf="parent"
-                        app:layout_constraintRight_toRightOf="parent"
-                        android:layout_marginBottom="6dp" />
-
-                    <TextView
-                        android:id="@+id/tvArtist"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="HERBDOUT RADIO"
-                        android:textColor="#5EFF00"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
-                        android:letterSpacing="0.05"
-                        app:layout_constraintBottom_toBottomOf="parent"
-                        app:layout_constraintLeft_toLeftOf="parent"
-                        app:layout_constraintRight_toRightOf="parent" />
-
-                </androidx.constraintlayout.widget.ConstraintLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Bottom Control Panel -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/playerCard"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginLeft="24dp"
-                android:layout_marginRight="24dp"
-                android:layout_marginBottom="24dp"
-                app:cardBackgroundColor="#0B0C0B"
-                app:strokeColor="#1A5EFF00"
-                app:strokeWidth="1dp"
-                app:cardCornerRadius="24dp"
-                app:layout_constraintBottom_toBottomOf="parent">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:padding="24dp">
-
-                    <TextView
-                        android:id="@+id/tvStatus"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="TAP PLAY TO TUNE IN"
-                        android:textColor="#888888"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
-                        android:gravity="center"
-                        android:layout_marginBottom="20dp"
-                        android:letterSpacing="0.05" />
-
-                    <!-- Play/Pause Button -->
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnPlay"
-                        android:layout_width="match_parent"
-                        android:layout_height="56dp"
-                        android:text="Listen"
-                        android:textColor="#000000"
-                        android:backgroundTint="#5EFF00"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        app:cornerRadius="28dp"
-                        android:elevation="4dp" />
-
-                </LinearLayout>
-            </com.google.a
+        import os
+        os.makedirs("app/sr
