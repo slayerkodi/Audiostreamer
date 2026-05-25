@@ -52,7 +52,146 @@ jobs:
       run: |
         echo "android.useAndroidX=true" > gradle.properties
 
-    # Automatically overwrites MainActivity.kt with renamed variables to avoid name collisions
+    # Creates a custom green circle drawable for the pulsing live dot
+    - name: Create green_dot drawable
+      run: |
+        mkdir -p app/src/main/res/drawable
+        cat << 'EOF' > app/src/main/res/drawable/green_dot.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <shape xmlns:android="http://schemas.android.com/apk/res/android"
+            android:shape="oval">
+            <solid android:color="#00FF66" />
+        </shape>
+        EOF
+
+    # Overwrites the UI layout with the OLED design
+    - name: Force Overwrite activity_main.xml
+      run: |
+        mkdir -p app/src/main/res/layout
+        cat << 'EOF' > app/src/main/res/layout/activity_main.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <androidx.constraintlayout.widget.ConstraintLayout 
+            xmlns:android="http://schemas.android.com/apk/res/android"
+            xmlns:app="http://schemas.android.com/apk/res-auto"
+            xmlns:tools="http://schemas.android.com/tools"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#000000"
+            tools:context=".MainActivity">
+
+            <!-- Top logo/branding section -->
+            <LinearLayout
+                android:id="@+id/brandContainer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toTopOf="@id/playerCard"
+                app:layout_constraintLeft_toLeftOf="parent"
+                app:layout_constraintRight_toRightOf="parent"
+                app:layout_constraintVertical_chainStyle="packed">
+
+                <TextView
+                    android:id="@+id/tvBrand"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="HERBDOUT"
+                    android:textColor="#00FF66"
+                    android:textSize="38sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.1"
+                    android:shadowColor="#00FF66"
+                    android:shadowDx="0"
+                    android:shadowDy="0"
+                    android:shadowRadius="15" />
+
+                <TextView
+                    android:id="@+id/tvBrandSub"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="R A D I O"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="4dp"
+                    android:alpha="0.8" />
+            </LinearLayout>
+
+            <!-- Centered player panel -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/playerCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="32dp"
+                android:layout_marginRight="32dp"
+                android:layout_marginTop="40dp"
+                app:cardBackgroundColor="#0B0B0B"
+                app:strokeColor="#3300FF66"
+                app:strokeWidth="1dp"
+                app:cardCornerRadius="24dp"
+                app:layout_constraintTop_toBottomOf="@id/brandContainer"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintLeft_toLeftOf="parent"
+                app:layout_constraintRight_toRightOf="parent">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:padding="32dp">
+
+                    <!-- Pulsing live indicator container -->
+                    <LinearLayout
+                        android:id="@+id/statusContainer"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="32dp">
+
+                        <View
+                            android:id="@+id/liveDot"
+                            android:layout_width="10dp"
+                            android:layout_height="10dp"
+                            android:background="@drawable/green_dot"
+                            android:layout_marginEnd="10dp"
+                            android:visibility="invisible" />
+
+                        <TextView
+                            android:id="@+id/tvStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Ready"
+                            android:textColor="#94A3B8"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:textAllCaps="true"
+                            android:letterSpacing="0.05" />
+                    </LinearLayout>
+
+                    <!-- Modern play/pause button -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnPlay"
+                        android:layout_width="match_parent"
+                        android:layout_height="64dp"
+                        android:text="Listen"
+                        android:textColor="#000000"
+                        android:backgroundTint="#00FF66"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="32dp"
+                        android:elevation="8dp"
+                        app:rippleColor="#4DFFFFFF" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+        EOF
+
+    # Overwrites MainActivity.kt with logic to handle the live dot animation
     - name: Force Overwrite MainActivity.kt
       run: |
         mkdir -p app/src/main/java/com/example/audiostreamer
@@ -62,6 +201,9 @@ jobs:
         import android.media.AudioAttributes
         import android.media.MediaPlayer
         import android.os.Bundle
+        import android.view.View
+        import android.view.animation.AlphaAnimation
+        import android.view.animation.Animation
         import android.widget.Button
         import android.widget.TextView
         import androidx.appcompat.app.AppCompatActivity
@@ -74,6 +216,7 @@ jobs:
 
             private lateinit var btnPlay: Button
             private lateinit var tvStatus: TextView
+            private lateinit var liveDot: View
 
             override fun onCreate(savedInstanceState: Bundle?) {
                 super.onCreate(savedInstanceState)
@@ -81,6 +224,7 @@ jobs:
 
                 btnPlay = findViewById(R.id.btnPlay)
                 tvStatus = findViewById(R.id.tvStatus)
+                liveDot = findViewById(R.id.liveDot)
 
                 btnPlay.setOnClickListener {
                     togglePlayback()
@@ -97,6 +241,7 @@ jobs:
 
             private fun startPlaying() {
                 tvStatus.text = "Connecting..."
+                tvStatus.setTextColor(android.graphics.Color.parseColor("#94A3B8"))
                 btnPlay.isEnabled = false
 
                 try {
@@ -114,9 +259,20 @@ jobs:
                             btnPlay.text = "Pause"
                             btnPlay.isEnabled = true
                             tvStatus.text = "Playing live stream"
+                            tvStatus.setTextColor(android.graphics.Color.parseColor("#00FF66"))
+                            
+                            // Start pulsing neon green live dot
+                            liveDot.visibility = View.VISIBLE
+                            val blink = AlphaAnimation(0.3f, 1.0f).apply {
+                                duration = 800
+                                repeatMode = Animation.REVERSE
+                                repeatCount = Animation.INFINITE
+                            }
+                            liveDot.startAnimation(blink)
                         }
                         setOnErrorListener { _, _, _ ->
                             tvStatus.text = "Error loading stream. Is it offline?"
+                            tvStatus.setTextColor(android.graphics.Color.parseColor("#EF4444"))
                             resetPlayer()
                             true
                         }
@@ -124,6 +280,7 @@ jobs:
                     }
                 } catch (e: Exception) {
                     tvStatus.text = "Failed to initialize player"
+                    tvStatus.setTextColor(android.graphics.Color.parseColor("#EF4444"))
                     resetPlayer()
                 }
             }
@@ -131,6 +288,7 @@ jobs:
             private fun stopPlaying() {
                 resetPlayer()
                 tvStatus.text = "Stopped"
+                tvStatus.setTextColor(android.graphics.Color.parseColor("#94A3B8"))
             }
 
             private fun resetPlayer() {
@@ -144,6 +302,10 @@ jobs:
                 isStreamActive = false
                 btnPlay.text = "Listen"
                 btnPlay.isEnabled = true
+                
+                // Stop pulsing live dot
+                liveDot.clearAnimation()
+                liveDot.visibility = View.INVISIBLE
             }
 
             override fun onDestroy() {
