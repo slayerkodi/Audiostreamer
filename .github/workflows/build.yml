@@ -664,7 +664,7 @@ jobs:
                 const val ACTION_STOP = "com.example.audiostreamer.STOP"
                 
                 var listener: AudioServiceListener? = null
-                var isPlaying = false
+                var isStreamPlaying = false
                 var isConnecting = false
                 var isError = false
             }
@@ -681,7 +681,7 @@ jobs:
             // Handler and runnable for the 20-second connection timeout
             private val timeoutHandler = Handler(Looper.getMainLooper())
             private val timeoutRunnable = Runnable {
-                if (!isPlaying && isConnecting) {
+                if (!isStreamPlaying && isConnecting) {
                     handleError()
                 }
             }
@@ -697,11 +697,11 @@ jobs:
             }
 
             private fun startPlaying() {
-                if (isPlaying || isConnecting) return
+                if (isStreamPlaying || isConnecting) return
 
                 isConnecting = true
                 isError = false
-                isPlaying = false
+                isStreamPlaying = false
                 notifyStateChanged()
 
                 // Starts the Foreground Service using standard configurations
@@ -734,7 +734,7 @@ jobs:
                             it.start()
                             
                             isConnecting = false
-                            isPlaying = true
+                            isStreamPlaying = true
                             notifyStateChanged()
                             
                             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -754,7 +754,7 @@ jobs:
             private fun handleError() {
                 timeoutHandler.removeCallbacks(timeoutRunnable)
                 isConnecting = false
-                isPlaying = false
+                isStreamPlaying = false
                 isError = true
                 notifyStateChanged()
                 
@@ -773,7 +773,7 @@ jobs:
                 }
                 mediaPlayer = null
                 isConnecting = false
-                isPlaying = false
+                isStreamPlaying = false
                 isError = false
                 notifyStateChanged()
                 
@@ -937,7 +937,7 @@ jobs:
             }
 
             private fun togglePlayback() {
-                if (!AudioService.isPlaying && !AudioService.isConnecting) {
+                if (!AudioService.isStreamPlaying && !AudioService.isConnecting) {
                     startPlaybackService()
                 } else {
                     stopPlaybackService()
@@ -973,7 +973,7 @@ jobs:
                     liveDot.clearAnimation()
                     liveDot.visibility = View.GONE
                     stopVinylRotation()
-                } else if (AudioService.isPlaying) {
+                } else if (AudioService.isStreamPlaying) {
                     btnPlay.text = "Pause"
                     btnPlay.isEnabled = true
                     
