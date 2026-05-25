@@ -52,6 +52,22 @@ jobs:
       run: |
         echo "android.useAndroidX=true" > gradle.properties
 
+    # Creates the precise 8-pointed electric green star logo
+    - name: Create ic_star_logo drawable
+      run: |
+        mkdir -p app/src/main/res/drawable
+        cat << 'EOF' > app/src/main/res/drawable/ic_star_logo.xml
+        <vector xmlns:android="http://schemas.android.com/apk/res/android"
+            android:width="24dp"
+            android:height="24dp"
+            android:viewportWidth="24"
+            android:viewportHeight="24">
+            <path
+                android:fillColor="#5EFF00"
+                android:pathData="M12,0 L14.8,7.2 L22.1,4.5 L16.8,10.2 L24,12 L16.8,13.8 L22.1,19.5 L14.8,16.8 L12,24 L9.2,16.8 L1.9,19.5 L7.2,13.8 L0,12 L7.2,10.2 L1.9,4.5 L9.2,7.2 Z" />
+        </vector>
+        EOF
+
     # Creates a custom green circle drawable for the pulsing live dot
     - name: Create green_dot drawable
       run: |
@@ -60,11 +76,11 @@ jobs:
         <?xml version="1.0" encoding="utf-8"?>
         <shape xmlns:android="http://schemas.android.com/apk/res/android"
             android:shape="oval">
-            <solid android:color="#00FF66" />
+            <solid android:color="#5EFF00" />
         </shape>
         EOF
 
-    # Overwrites the UI layout with the OLED design
+    # Overwrites the UI layout with the target design matching Image 2
     - name: Force Overwrite activity_main.xml
       run: |
         mkdir -p app/src/main/res/layout
@@ -76,114 +92,271 @@ jobs:
             xmlns:tools="http://schemas.android.com/tools"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="#000000"
+            android:background="#080808"
             tools:context=".MainActivity">
 
-            <!-- Top logo/branding section -->
+            <!-- Top Branding Bar -->
             <LinearLayout
-                android:id="@+id/brandContainer"
-                android:layout_width="wrap_content"
+                android:id="@+id/topBar"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="center"
-                app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintBottom_toTopOf="@id/playerCard"
-                app:layout_constraintLeft_toLeftOf="parent"
-                app:layout_constraintRight_toRightOf="parent"
-                app:layout_constraintVertical_chainStyle="packed">
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingLeft="24dp"
+                android:paddingRight="24dp"
+                android:paddingTop="24dp"
+                app:layout_constraintTop_toTopOf="parent">
 
-                <TextView
-                    android:id="@+id/tvBrand"
+                <ImageView
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:src="@drawable/ic_star_logo"
+                    android:contentDescription="Station Logo" />
+
+                <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="HERBDOUT"
-                    android:textColor="#00FF66"
-                    android:textSize="38sp"
-                    android:textStyle="bold"
-                    android:letterSpacing="0.1"
-                    android:shadowColor="#00FF66"
-                    android:shadowDx="0"
-                    android:shadowDy="0"
-                    android:shadowRadius="15" />
+                    android:orientation="vertical"
+                    android:layout_marginStart="14dp">
 
-                <TextView
-                    android:id="@+id/tvBrandSub"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="R A D I O"
-                    android:textColor="#FFFFFF"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:layout_marginTop="4dp"
-                    android:alpha="0.8" />
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="HERBDOUT"
+                            android:textColor="#FFFFFF"
+                            android:textSize="22sp"
+                            android:textStyle="bold|italic" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="RADIO"
+                            android:textColor="#5EFF00"
+                            android:textSize="22sp"
+                            android:textStyle="bold|italic" />
+                    </LinearLayout>
+
+                    <!-- Status indicators -->
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginTop="2dp">
+
+                        <View
+                            android:id="@+id/liveDot"
+                            android:layout_width="6dp"
+                            android:layout_height="6dp"
+                            android:background="@drawable/green_dot"
+                            android:layout_marginEnd="6dp"
+                            android:visibility="gone" />
+
+                        <TextView
+                            android:id="@+id/tvLiveStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="OFF AIR"
+                            android:textColor="#888888"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:letterSpacing="0.05" />
+                    </LinearLayout>
+
+                </LinearLayout>
             </LinearLayout>
 
-            <!-- Centered player panel -->
+            <!-- Centered Player Panel -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/recordCard"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginLeft="24dp"
+                android:layout_marginRight="24dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="24dp"
+                app:cardBackgroundColor="#0B0C0B"
+                app:strokeColor="#1A5EFF00"
+                app:strokeWidth="1dp"
+                app:cardCornerRadius="24dp"
+                app:layout_constraintTop_toBottomOf="@id/topBar"
+                app:layout_constraintBottom_toTopOf="@id/playerCard">
+
+                <androidx.constraintlayout.widget.ConstraintLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:padding="24dp">
+
+                    <!-- Title: NOW PLAYING -->
+                    <TextView
+                        android:id="@+id/tvNowPlayingLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="●  NOW PLAYING"
+                        android:textColor="#5EFF00"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.1"
+                        app:layout_constraintTop_toTopOf="parent"
+                        app:layout_constraintLeft_toLeftOf="parent"
+                        app:layout_constraintRight_toRightOf="parent" />
+
+                    <!-- Concentric Vinyl Record Container -->
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:id="@+id/vinylRecord"
+                        android:layout_width="220dp"
+                        android:layout_height="220dp"
+                        app:layout_constraintTop_toBottomOf="@id/tvNowPlayingLabel"
+                        app:layout_constraintBottom_toTopOf="@id/tvTrackTitle"
+                        app:layout_constraintLeft_toLeftOf="parent"
+                        app:layout_constraintRight_toRightOf="parent"
+                        app:layout_constraintVertical_bias="0.4">
+
+                        <!-- Outer Ring -->
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            app:cardCornerRadius="110dp"
+                            app:cardBackgroundColor="#0D0D0D"
+                            app:strokeColor="#335EFF00"
+                            app:strokeWidth="2dp"
+                            app:cardElevation="0dp" />
+
+                        <!-- Inner Circle 1 -->
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="180dp"
+                            android:layout_height="180dp"
+                            app:cardCornerRadius="90dp"
+                            app:cardBackgroundColor="#090909"
+                            app:strokeColor="#444444"
+                            app:strokeWidth="1dp"
+                            app:cardElevation="0dp"
+                            app:layout_constraintTop_toTopOf="parent"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintLeft_toLeftOf="parent"
+                            app:layout_constraintRight_toRightOf="parent" />
+
+                        <!-- Inner Circle 2 -->
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="140dp"
+                            android:layout_height="140dp"
+                            app:cardCornerRadius="70dp"
+                            app:cardBackgroundColor="#060606"
+                            app:strokeColor="#333333"
+                            app:strokeWidth="1dp"
+                            app:cardElevation="0dp"
+                            app:layout_constraintTop_toTopOf="parent"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintLeft_toLeftOf="parent"
+                            app:layout_constraintRight_toRightOf="parent" />
+
+                        <!-- Center Logo Label (Vinyl Center) -->
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="70dp"
+                            android:layout_height="70dp"
+                            app:cardCornerRadius="35dp"
+                            app:cardBackgroundColor="#121212"
+                            app:strokeColor="#5EFF00"
+                            app:strokeWidth="1.5dp"
+                            app:cardElevation="0dp"
+                            app:layout_constraintTop_toTopOf="parent"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintLeft_toLeftOf="parent"
+                            app:layout_constraintRight_toRightOf="parent" >
+
+                            <ImageView
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:src="@drawable/ic_star_logo"
+                                android:padding="16dp"
+                                android:contentDescription="Star logo center" />
+                        </com.google.android.material.card.MaterialCardView>
+
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
+                    <!-- Track metadata -->
+                    <TextView
+                        android:id="@+id/tvTrackTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:text="LIVE STREAM BROADCAST"
+                        android:textColor="#FFFFFF"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:gravity="center"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        app:layout_constraintBottom_toTopOf="@id/tvArtist"
+                        app:layout_constraintLeft_toLeftOf="parent"
+                        app:layout_constraintRight_toRightOf="parent"
+                        android:layout_marginBottom="6dp" />
+
+                    <TextView
+                        android:id="@+id/tvArtist"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="HERBDOUT RADIO"
+                        android:textColor="#5EFF00"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.05"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        app:layout_constraintLeft_toLeftOf="parent"
+                        app:layout_constraintRight_toRightOf="parent" />
+
+                </androidx.constraintlayout.widget.ConstraintLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Bottom Control Panel -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/playerCard"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginLeft="32dp"
-                android:layout_marginRight="32dp"
-                android:layout_marginTop="40dp"
-                app:cardBackgroundColor="#0B0B0B"
-                app:strokeColor="#3300FF66"
+                android:layout_marginLeft="24dp"
+                android:layout_marginRight="24dp"
+                android:layout_marginBottom="24dp"
+                app:cardBackgroundColor="#0B0C0B"
+                app:strokeColor="#1A5EFF00"
                 app:strokeWidth="1dp"
                 app:cardCornerRadius="24dp"
-                app:layout_constraintTop_toBottomOf="@id/brandContainer"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintLeft_toLeftOf="parent"
-                app:layout_constraintRight_toRightOf="parent">
+                app:layout_constraintBottom_toBottomOf="parent">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:gravity="center"
-                    android:padding="32dp">
+                    android:padding="24dp">
 
-                    <!-- Pulsing live indicator container -->
-                    <LinearLayout
-                        android:id="@+id/statusContainer"
+                    <TextView
+                        android:id="@+id/tvStatus"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:layout_marginBottom="32dp">
+                        android:text="TAP PLAY TO TUNE IN"
+                        android:textColor="#888888"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:gravity="center"
+                        android:layout_marginBottom="20dp"
+                        android:letterSpacing="0.05" />
 
-                        <View
-                            android:id="@+id/liveDot"
-                            android:layout_width="10dp"
-                            android:layout_height="10dp"
-                            android:background="@drawable/green_dot"
-                            android:layout_marginEnd="10dp"
-                            android:visibility="invisible" />
-
-                        <TextView
-                            android:id="@+id/tvStatus"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Ready"
-                            android:textColor="#94A3B8"
-                            android:textSize="14sp"
-                            android:textStyle="bold"
-                            android:textAllCaps="true"
-                            android:letterSpacing="0.05" />
-                    </LinearLayout>
-
-                    <!-- Modern play/pause button -->
+                    <!-- Play/Pause Button -->
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnPlay"
                         android:layout_width="match_parent"
-                        android:layout_height="64dp"
+                        android:layout_height="56dp"
                         android:text="Listen"
                         android:textColor="#000000"
-                        android:backgroundTint="#00FF66"
-                        android:textSize="18sp"
+                        android:backgroundTint="#5EFF00"
+                        android:textSize="16sp"
                         android:textStyle="bold"
-                        app:cornerRadius="32dp"
-                        android:elevation="8dp"
-                        app:rippleColor="#4DFFFFFF" />
+                        app:cornerRadius="28dp"
+                        android:elevation="4dp" />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -191,7 +364,7 @@ jobs:
         </androidx.constraintlayout.widget.ConstraintLayout>
         EOF
 
-    # Overwrites MainActivity.kt with logic to handle the live dot animation
+    # Overwrites MainActivity.kt with full animations and custom error handling
     - name: Force Overwrite MainActivity.kt
       run: |
         mkdir -p app/src/main/java/com/example/audiostreamer
@@ -204,6 +377,8 @@ jobs:
         import android.view.View
         import android.view.animation.AlphaAnimation
         import android.view.animation.Animation
+        import android.view.animation.LinearInterpolator
+        import android.view.animation.RotateAnimation
         import android.widget.Button
         import android.widget.TextView
         import androidx.appcompat.app.AppCompatActivity
@@ -216,7 +391,11 @@ jobs:
 
             private lateinit var btnPlay: Button
             private lateinit var tvStatus: TextView
+            private lateinit var tvLiveStatus: TextView
             private lateinit var liveDot: View
+            private lateinit var vinylRecord: View
+
+            private var rotateAnim: RotateAnimation? = null
 
             override fun onCreate(savedInstanceState: Bundle?) {
                 super.onCreate(savedInstanceState)
@@ -224,7 +403,9 @@ jobs:
 
                 btnPlay = findViewById(R.id.btnPlay)
                 tvStatus = findViewById(R.id.tvStatus)
+                tvLiveStatus = findViewById(R.id.tvLiveStatus)
                 liveDot = findViewById(R.id.liveDot)
+                vinylRecord = findViewById(R.id.vinylRecord)
 
                 btnPlay.setOnClickListener {
                     togglePlayback()
@@ -240,8 +421,10 @@ jobs:
             }
 
             private fun startPlaying() {
-                tvStatus.text = "Connecting..."
-                tvStatus.setTextColor(android.graphics.Color.parseColor("#94A3B8"))
+                tvStatus.text = "CONNECTING..."
+                tvStatus.setTextColor(android.graphics.Color.parseColor("#888888"))
+                tvLiveStatus.text = "CONNECTING"
+                tvLiveStatus.setTextColor(android.graphics.Color.parseColor("#888888"))
                 btnPlay.isEnabled = false
 
                 try {
@@ -258,10 +441,14 @@ jobs:
                             isStreamActive = true
                             btnPlay.text = "Pause"
                             btnPlay.isEnabled = true
-                            tvStatus.text = "Playing live stream"
-                            tvStatus.setTextColor(android.graphics.Color.parseColor("#00FF66"))
                             
-                            // Start pulsing neon green live dot
+                            tvStatus.text = "NOW PLAYING LIVE"
+                            tvStatus.setTextColor(android.graphics.Color.parseColor("#5EFF00"))
+                            
+                            tvLiveStatus.text = "LIVE"
+                            tvLiveStatus.setTextColor(android.graphics.Color.parseColor("#5EFF00"))
+                            
+                            // Start pulsing live dot in header
                             liveDot.visibility = View.VISIBLE
                             val blink = AlphaAnimation(0.3f, 1.0f).apply {
                                 duration = 800
@@ -269,17 +456,24 @@ jobs:
                                 repeatCount = Animation.INFINITE
                             }
                             liveDot.startAnimation(blink)
+
+                            // Start spinning the vinyl record
+                            startVinylRotation()
                         }
                         setOnErrorListener { _, _, _ ->
-                            tvStatus.text = "Error loading stream. Is it offline?"
-                            tvStatus.setTextColor(android.graphics.Color.parseColor("#EF4444"))
+                            tvStatus.text = "Radio is not broadcasting right now.\nPlease try again later."
+                            tvStatus.setTextColor(android.graphics.Color.parseColor("#EF4444")) // Red
+                            
+                            tvLiveStatus.text = "OFF AIR"
+                            tvLiveStatus.setTextColor(android.graphics.Color.parseColor("#EF4444"))
+                            
                             resetPlayer()
                             true
                         }
                         prepareAsync()
                     }
                 } catch (e: Exception) {
-                    tvStatus.text = "Failed to initialize player"
+                    tvStatus.text = "Radio is not broadcasting right now.\nPlease try again later."
                     tvStatus.setTextColor(android.graphics.Color.parseColor("#EF4444"))
                     resetPlayer()
                 }
@@ -287,8 +481,10 @@ jobs:
 
             private fun stopPlaying() {
                 resetPlayer()
-                tvStatus.text = "Stopped"
-                tvStatus.setTextColor(android.graphics.Color.parseColor("#94A3B8"))
+                tvStatus.text = "TAP PLAY TO TUNE IN"
+                tvStatus.setTextColor(android.graphics.Color.parseColor("#888888"))
+                tvLiveStatus.text = "OFF AIR"
+                tvLiveStatus.setTextColor(android.graphics.Color.parseColor("#888888"))
             }
 
             private fun resetPlayer() {
@@ -303,9 +499,31 @@ jobs:
                 btnPlay.text = "Listen"
                 btnPlay.isEnabled = true
                 
-                // Stop pulsing live dot
+                // Stop live dot animation
                 liveDot.clearAnimation()
-                liveDot.visibility = View.INVISIBLE
+                liveDot.visibility = View.GONE
+
+                // Stop vinyl rotation
+                stopVinylRotation()
+            }
+
+            private fun startVinylRotation() {
+                if (rotateAnim == null) {
+                    rotateAnim = RotateAnimation(
+                        0f, 360f,
+                        Animation.RELATIVE_TO_SELF, 0.5f,
+                        Animation.RELATIVE_TO_SELF, 0.5f
+                    ).apply {
+                        duration = 5000 // 5 seconds per full rotation
+                        repeatCount = Animation.INFINITE
+                        interpolator = LinearInterpolator()
+                    }
+                }
+                vinylRecord.startAnimation(rotateAnim)
+            }
+
+            private fun stopVinylRotation() {
+                vinylRecord.clearAnimation()
             }
 
             override fun onDestroy() {
