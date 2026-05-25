@@ -104,8 +104,8 @@ jobs:
             f.write("""<resources>
             <string name="app_name">Herbdout Radio</string>
         </resources>""")
-
-    # Configures the colors file for the custom launcher background
+        
+# Configures the colors file for the custom launcher background
     - name: Create colors.xml
       shell: python
       run: |
@@ -228,8 +228,7 @@ jobs:
             android:shape="oval">
             <solid android:color="#5EFF00" />
         </shape>""")
-
-    # Overwrites the UI layout with the OLED design matching Image 2
+        # Overwrites the UI layout with the OLED design matching Image 2
     - name: Force Overwrite activity_main.xml
       shell: python
       run: |
@@ -623,8 +622,8 @@ jobs:
                 }
             }
         }""")
-
-    # Overwrites MainActivity.kt with black status-bar, 20s connection timeout, permission requests, and WorkManager scheduler
+        # Overwrites MainActivity.kt with black status-bar, 20s connection timeout, permission requests, and WorkManager scheduler
+    # Backslashes are escaped (\\n) so Python writes it to the Kotlin file correctly as \n
     - name: Force Overwrite MainActivity.kt
       shell: python
       run: |
@@ -674,7 +673,7 @@ jobs:
             private val timeoutHandler = Handler(Looper.getMainLooper())
             private val timeoutRunnable = Runnable {
                 if (!isStreamActive && mediaPlayer != null) {
-                    tvStatus.text = "Radio is not broadcasting right now.\nPlease try again later."
+                    tvStatus.text = "Radio is not broadcasting right now.\\nPlease try again later."
                     tvStatus.setTextColor(android.graphics.Color.parseColor("#EF4444"))
                     
                     tvLiveStatus.text = "OFF AIR"
@@ -791,7 +790,7 @@ jobs:
                         }
                         setOnErrorListener { _, _, _ ->
                             timeoutHandler.removeCallbacks(timeoutRunnable)
-                            tvStatus.text = "Radio is not broadcasting right now.\nPlease try again later."
+                            tvStatus.text = "Radio is not broadcasting right now.\\nPlease try again later."
                             tvStatus.setTextColor(android.graphics.Color.parseColor("#EF4444")) // Red
                             
                             tvLiveStatus.text = "OFF AIR"
@@ -804,7 +803,7 @@ jobs:
                     }
                 } catch (e: Exception) {
                     timeoutHandler.removeCallbacks(timeoutRunnable)
-                    tvStatus.text = "Radio is not broadcasting right now.\nPlease try again later."
+                    tvStatus.text = "Radio is not broadcasting right now.\\nPlease try again later."
                     tvStatus.setTextColor(android.graphics.Color.parseColor("#EF4444"))
                     resetPlayer()
                 }
