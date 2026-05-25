@@ -202,7 +202,7 @@ jobs:
             </application>
 
         </manifest>""")
-# Automatically creates/fixes the AndroidX settings
+        # Automatically creates/fixes the AndroidX settings
     - name: Configure AndroidX Settings
       run: |
         echo "android.useAndroidX=true" > gradle.properties
@@ -758,12 +758,8 @@ jobs:
                 isError = true
                 notifyStateChanged()
                 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                } else {
-                    @Suppress("DEPRECATION")
-                    stopForeground(true)
-                }
+                @Suppress("DEPRECATION")
+                stopForeground(true)
                 stopSelf()
             }
 
@@ -781,12 +777,8 @@ jobs:
                 isError = false
                 notifyStateChanged()
                 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                } else {
-                    @Suppress("DEPRECATION")
-                    stopForeground(true)
-                }
+                @Suppress("DEPRECATION")
+                stopForeground(true)
                 stopSelf()
             }
 
