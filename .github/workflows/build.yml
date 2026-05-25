@@ -47,10 +47,111 @@ jobs:
       with:
         gradle-version: '8.9'
 
-    # This creates the missing settings file dynamically to fix the build error
+    # Automatically creates/fixes the AndroidX settings
     - name: Configure AndroidX Settings
       run: |
         echo "android.useAndroidX=true" > gradle.properties
+
+    # Automatically overwrites the broken MainActivity.kt with the corrected code
+    - name: Force Overwrite MainActivity.kt
+      run: |
+        mkdir -p app/src/main/java/com/example/audiostreamer
+        cat << 'EOF' > app/src/main/java/com/example/audiostreamer/MainActivity.kt
+        package com.example.audiostreamer
+
+        import android.media.AudioAttributes
+        import android.media.MediaPlayer
+        import android.os.Bundle
+        import android.widget.Button
+        import android.widget.TextView
+        import androidx.appcompat.app.AppCompatActivity
+
+        class MainActivity : AppCompatActivity() {
+
+            private var mediaPlayer: MediaPlayer? = null
+            private var isPlaying = false
+            private val streamUrl = "http://uk18freenew.listen2myradio.com:5784/stream"
+
+            private lateinit var btnPlay: Button
+            private lateinit var tvStatus: TextView
+
+            override fun onCreate(savedInstanceState: Bundle?) {
+                super.onCreate(savedInstanceState)
+                setContentView(R.layout.activity_main)
+
+                btnPlay = findViewById(R.id.btnPlay)
+                tvStatus = findViewById(R.id.tvStatus)
+
+                btnPlay.setOnClickListener {
+                    togglePlayback()
+                }
+            }
+
+            private fun togglePlayback() {
+                if (!isPlaying) {
+                    startPlaying()
+                } else {
+                    stopPlaying()
+                }
+            }
+
+            private fun startPlaying() {
+                tvStatus.text = "Connecting..."
+                btnPlay.isEnabled = false
+
+                try {
+                    mediaPlayer = MediaPlayer().apply {
+                        setAudioAttributes(
+                            AudioAttributes.Builder()
+                                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                                .setUsage(AudioAttributes.USAGE_MEDIA)
+                                .build()
+                        )
+                        setDataSource(streamUrl)
+                        setOnPreparedListener {
+                            it.start()
+                            isPlaying = true
+                            btnPlay.text = "Pause"
+                            btnPlay.isEnabled = true
+                            tvStatus.text = "Playing live stream"
+                        }
+                        setOnErrorListener { _, _, _ ->
+                            tvStatus.text = "Error loading stream. Is it offline?"
+                            resetPlayer()
+                            true
+                        }
+                        prepareAsync()
+                    }
+                } catch (e: Exception) {
+                    tvStatus.text = "Failed to initialize player"
+                    resetPlayer()
+                }
+            }
+
+            private fun stopPlaying() {
+                resetPlayer()
+                tvStatus.text = "Stopped"
+            }
+
+            private fun resetPlayer() {
+                mediaPlayer?.let {
+                    if (it.isPlaying) {
+                        it.stop()
+                    }
+                    it.release()
+                }
+                mediaPlayer = null
+                isPlaying = false
+                btnPlay.text = "Listen"
+                btnPlay.isEnabled = true
+            }
+
+            override fun onDestroy() {
+                super.onDestroy()
+                resetPlayer()
+            }
+        }
+        EOF
 
     - name: Build with Gradle
       run: gradle assembleDebug --stacktrace
