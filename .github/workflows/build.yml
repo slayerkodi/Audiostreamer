@@ -52,7 +52,7 @@ jobs:
       run: |
         echo "android.useAndroidX=true" > gradle.properties
 
-    # Automatically overwrites the broken MainActivity.kt with the corrected code
+    # Automatically overwrites MainActivity.kt with renamed variables to avoid name collisions
     - name: Force Overwrite MainActivity.kt
       run: |
         mkdir -p app/src/main/java/com/example/audiostreamer
@@ -69,7 +69,7 @@ jobs:
         class MainActivity : AppCompatActivity() {
 
             private var mediaPlayer: MediaPlayer? = null
-            private var isPlaying = false
+            private var isStreamActive = false
             private val streamUrl = "http://uk18freenew.listen2myradio.com:5784/stream"
 
             private lateinit var btnPlay: Button
@@ -88,7 +88,7 @@ jobs:
             }
 
             private fun togglePlayback() {
-                if (!isPlaying) {
+                if (!isStreamActive) {
                     startPlaying()
                 } else {
                     stopPlaying()
@@ -110,7 +110,7 @@ jobs:
                         setDataSource(streamUrl)
                         setOnPreparedListener {
                             it.start()
-                            isPlaying = true
+                            isStreamActive = true
                             btnPlay.text = "Pause"
                             btnPlay.isEnabled = true
                             tvStatus.text = "Playing live stream"
@@ -141,7 +141,7 @@ jobs:
                     it.release()
                 }
                 mediaPlayer = null
-                isPlaying = false
+                isStreamActive = false
                 btnPlay.text = "Listen"
                 btnPlay.isEnabled = true
             }
