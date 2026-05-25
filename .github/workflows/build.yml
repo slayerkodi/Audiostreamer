@@ -893,7 +893,12 @@ jobs:
                 stopPlaying()
             }
         }""")
-        # Overwrites MainActivity.kt to bind to the Foreground AudioService and handle UI changes
+                        setupEmojiButtons()
+            }
+
+            private fun checkAndRequestPermissions() {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+# Overwrites MainActivity.kt to bind to the Foreground AudioService and handle UI changes
     # Backslashes are escaped (\\n) so Python writes it to the Kotlin file correctly as \n
     - name: Force Overwrite MainActivity.kt
       shell: python
@@ -1021,7 +1026,10 @@ jobs:
                         if (args.isNotEmpty()) {
                             val emoji = args[0] as? String
                             if (emoji != null) {
-                                showFloatingEmoji(emoji)
+                                // Only float incoming emojis if they aren't duplicates (handled by server broadcast)
+                                runOnUiThread {
+                                    showFloatingEmoji(emoji)
+                                }
                             }
                         }
                     }
@@ -1040,6 +1048,10 @@ jobs:
             }
 
             private fun sendEmoji(emoji: String) {
+                // Instantly play the float animation locally for immediate feedback
+                showFloatingEmoji(emoji)
+                
+                // Emit to the server so other users can see it
                 mSocket?.emit("send-emoji", emoji)
             }
 
@@ -1058,17 +1070,22 @@ jobs:
 
                     emojiContainer.addView(textView)
 
-                    // Randomize horizontal starting point
-                    val randomX = (Math.random() * 300 - 150).toFloat()
+                    // Get screen width and height dynamically to animate perfectly on any screen size
+                    val displayMetrics = resources.displayMetrics
+                    val screenHeight = displayMetrics.heightPixels.toFloat()
+                    val screenWidth = displayMetrics.widthPixels.toFloat()
+
+                    // Randomize horizontal starting point across the middle 60% of the screen
+                    val randomX = ((Math.random() * (screenWidth * 0.6)) - (screenWidth * 0.3)).toFloat()
                     textView.translationX = randomX
 
                     // Animate upwards, expand, and fade away
                     textView.animate()
-                        .translationY(-1000f)
+                        .translationY(-screenHeight) // Float all the way to the top of the screen
                         .alpha(0f)
                         .scaleX(1.4f)
                         .scaleY(1.4f)
-                        .setDuration(2200)
+                        .setDuration(2500) // 2.5 seconds is the sweet spot for floating speed
                         .withEndAction {
                             emojiContainer.removeView(textView) // Auto cleanup
                         }
