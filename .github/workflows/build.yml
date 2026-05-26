@@ -263,7 +263,7 @@ jobs:
             <stroke android:width="1dp" android:color="#335EFF00" />
         </shape>""")
 
-    # Overwrites the UI layout with the OLED design matching Image 2
+    # Overwrites the UI layout adding transparent floating emoji canvas and designated reaction buttons
     - name: Force Overwrite activity_main.xml
       shell: python
       run: |
@@ -979,289 +979,289 @@ jobs:
             }
         }""")
 
-        # Overwrites MainActivity.kt to bind to the Foreground AudioService and handle UI changes
-        # Backslashes are escaped (\\n) so Python writes it to the Kotlin file correctly as \n
-        - name: Force Overwrite MainActivity.kt
-          shell: python
-          run: |
-            import os
-            os.makedirs("app/src/main/java/com/example/audiostreamer", exist_ok=True)
-            with open("app/src/main/java/com/example/audiostreamer/MainActivity.kt", "w") as f:
-                f.write("""package com.example.audiostreamer
+    # Overwrites MainActivity.kt to bind to the Foreground AudioService and handle UI changes
+    # Backslashes are escaped (\\n) so Python writes it to the Kotlin file correctly as \n
+    - name: Force Overwrite MainActivity.kt
+      shell: python
+      run: |
+        import os
+        os.makedirs("app/src/main/java/com/example/audiostreamer", exist_ok=True)
+        with open("app/src/main/java/com/example/audiostreamer/MainActivity.kt", "w") as f:
+            f.write("""package com.example.audiostreamer
 
-            import android.Manifest
-            import android.content.Intent
-            import android.content.pm.PackageManager
-            import android.os.Build
-            import android.os.Bundle
-            import android.view.View
-            import android.view.animation.AlphaAnimation
-            import android.view.animation.Animation
-            import android.view.animation.LinearInterpolator
-            import android.view.animation.RotateAnimation
-            import android.widget.Button
-            import android.widget.FrameLayout
-            import android.widget.TextView
-            import androidx.appcompat.app.AppCompatActivity
-            import androidx.core.app.ActivityCompat
-            import androidx.core.content.ContextCompat
-            import androidx.work.ExistingPeriodicWorkPolicy
-            import androidx.work.PeriodicWorkRequestBuilder
-            import androidx.work.WorkManager
-            import com.google.firebase.auth.FirebaseAuth
-            import io.socket.client.IO
-            import io.socket.client.Socket
-            import org.json.JSONObject
-            import java.util.concurrent.TimeUnit
+        import android.Manifest
+        import android.content.Intent
+        import android.content.pm.PackageManager
+        import android.os.Build
+        import android.os.Bundle
+        import android.view.View
+        import android.view.animation.AlphaAnimation
+        import android.view.animation.Animation
+        import android.view.animation.LinearInterpolator
+        import android.view.animation.RotateAnimation
+        import android.widget.Button
+        import android.widget.FrameLayout
+        import android.widget.TextView
+        import androidx.appcompat.app.AppCompatActivity
+        import androidx.core.app.ActivityCompat
+        import androidx.core.content.ContextCompat
+        import androidx.work.ExistingPeriodicWorkPolicy
+        import androidx.work.PeriodicWorkRequestBuilder
+        import androidx.work.WorkManager
+        import com.google.firebase.auth.FirebaseAuth
+        import io.socket.client.IO
+        import io.socket.client.Socket
+        import org.json.JSONObject
+        import java.util.concurrent.TimeUnit
 
-            class MainActivity : AppCompatActivity() {
+        class MainActivity : AppCompatActivity() {
 
-                private lateinit var btnPlay: Button
-                private lateinit var tvStatus: TextView
-                private lateinit var tvLiveStatus: TextView
-                private lateinit var liveDot: View
-                private lateinit var vinylRecord: View
-                private lateinit var emojiContainer: FrameLayout
+            private lateinit var btnPlay: Button
+            private lateinit var tvStatus: TextView
+            private lateinit var tvLiveStatus: TextView
+            private lateinit var liveDot: View
+            private lateinit var vinylRecord: View
+            private lateinit var emojiContainer: FrameLayout
 
-                private var rotateAnim: RotateAnimation? = null
-                private var mSocket: Socket? = null
+            private var rotateAnim: RotateAnimation? = null
+            private var mSocket: Socket? = null
+            
+            // Explicitly connects to your central server cloud instance URL
+            private val socketUrl = "https://ais-pre-eov36f74tvwrwzzr5kg2pz-787301755010.europe-west2.run.app"
+
+            override fun onCreate(savedInstanceState: Bundle?) {
+                super.onCreate(savedInstanceState)
                 
-                // Explicitly connects to your central server cloud instance URL
-                private val socketUrl = "https://ais-pre-eov36f74tvwrwzzr5kg2pz-787301755010.europe-west2.run.app"
+                window.statusBarColor = android.graphics.Color.parseColor("#080808")
+                window.navigationBarColor = android.graphics.Color.parseColor("#080808")
 
-                override fun onCreate(savedInstanceState: Bundle?) {
-                    super.onCreate(savedInstanceState)
+                setContentView(R.layout.activity_main)
+
+                btnPlay = findViewById(R.id.btnPlay)
+                tvStatus = findViewById(R.id.tvStatus)
+                tvLiveStatus = findViewById(R.id.tvLiveStatus)
+                liveDot = findViewById(R.id.liveDot)
+                vinylRecord = findViewById(R.id.vinylRecord)
+                emojiContainer = findViewById(R.id.emojiContainer)
+
+                btnPlay.setOnClickListener {
+                    togglePlayback()
+                }
+
+                // Check and request push notifications permission
+                checkAndRequestPermissions()
+
+                // Register background silent check job
+                setupBackgroundChecks()
+
+                // Bind UI update listener directly to our Foreground Service state
+                AudioService.listener = object : AudioService.AudioServiceListener {
+                    override fun onStateChanged() {
+                        updateUIState()
+                    }
+                }
+
+                // Run an initial UI state sync check
+                updateUIState()
+
+                // Establish Socket.io connection
+                setupSocketConnection()
+
+                // Set up local emoji button click listeners
+                setupEmojiButtons()
+            }
+
+            private fun checkAndRequestPermissions() {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) 
+                        != PackageManager.PERMISSION_GRANTED) {
+                        ActivityCompat.requestPermissions(
+                            this, 
+                            arrayOf(Manifest.permission.POST_NOTIFICATIONS), 
+                            101
+                        )
+                    }
+                }
+            }
+
+            private fun setupBackgroundChecks() {
+                val checkRequest = PeriodicWorkRequestBuilder<StreamCheckWorker>(
+                    15, TimeUnit.MINUTES
+                ).build()
+
+                WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+                    "HerbdoutStreamCheck",
+                    ExistingPeriodicWorkPolicy.KEEP,
+                    checkRequest
+                )
+            }
+
+            private fun setupSocketConnection() {
+                try {
+                    val opts = IO.Options().apply {
+                        forceNew = true
+                        reconnection = true
+                        // Force WebSockets transport to resolve Cloud Run routing/handshake issues
+                        transports = arrayOf("websocket") 
+                    }
+                    mSocket = IO.socket(socketUrl, opts)
                     
-                    window.statusBarColor = android.graphics.Color.parseColor("#080808")
-                    window.navigationBarColor = android.graphics.Color.parseColor("#080808")
-
-                    setContentView(R.layout.activity_main)
-
-                    btnPlay = findViewById(R.id.btnPlay)
-                    tvStatus = findViewById(R.id.tvStatus)
-                    tvLiveStatus = findViewById(R.id.tvLiveStatus)
-                    liveDot = findViewById(R.id.liveDot)
-                    vinylRecord = findViewById(R.id.vinylRecord)
-                    emojiContainer = findViewById(R.id.emojiContainer)
-
-                    btnPlay.setOnClickListener {
-                        togglePlayback()
-                    }
-
-                    // Check and request push notifications permission
-                    checkAndRequestPermissions()
-
-                    // Register background silent check job
-                    setupBackgroundChecks()
-
-                    // Bind UI update listener directly to our Foreground Service state
-                    AudioService.listener = object : AudioService.AudioServiceListener {
-                        override fun onStateChanged() {
-                            updateUIState()
-                        }
-                    }
-
-                    // Run an initial UI state sync check
-                    updateUIState()
-
-                    // Establish Socket.io connection
-                    setupSocketConnection()
-
-                    // Set up local emoji button click listeners
-                    setupEmojiButtons()
-                }
-
-                private fun checkAndRequestPermissions() {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) 
-                            != PackageManager.PERMISSION_GRANTED) {
-                            ActivityCompat.requestPermissions(
-                                this, 
-                                arrayOf(Manifest.permission.POST_NOTIFICATIONS), 
-                                101
-                            )
-                        }
-                    }
-                }
-
-                private fun setupBackgroundChecks() {
-                    val checkRequest = PeriodicWorkRequestBuilder<StreamCheckWorker>(
-                        15, TimeUnit.MINUTES
-                    ).build()
-
-                    WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
-                        "HerbdoutStreamCheck",
-                        ExistingPeriodicWorkPolicy.KEEP,
-                        checkRequest
-                    )
-                }
-
-                private fun setupSocketConnection() {
-                    try {
-                        val opts = IO.Options().apply {
-                            forceNew = true
-                            reconnection = true
-                            // Force WebSockets transport to resolve Cloud Run routing/handshake issues
-                            transports = arrayOf("websocket") 
-                        }
-                        mSocket = IO.socket(socketUrl, opts)
-                        
-                        // Listen for emojis sent from other users or broadcaster
-                        mSocket?.on("new-emoji") { args ->
-                            if (args.isNotEmpty()) {
-                                val data = args[0] as? JSONObject
-                                if (data != null) {
-                                    val emoji = data.optString("emoji", "❤️")
-                                    val username = data.optString("sender", "Listener") // Aligned key with React Web Broadcaster
-                                    val avatar = data.optString("avatar", "")
-                                    
-                                    // Safeguard against memory leak crashes when background updates arrive as the app is exiting
-                                    if (!isFinishing && !isDestroyed) {
-                                        runOnUiThread {
-                                            showFloatingEmoji(emoji, username, avatar)
-                                        }
+                    // Listen for emojis sent from other users or broadcaster
+                    mSocket?.on("new-emoji") { args ->
+                        if (args.isNotEmpty()) {
+                            val data = args[0] as? JSONObject
+                            if (data != null) {
+                                val emoji = data.optString("emoji", "❤️")
+                                val username = data.optString("sender", "Listener") // Aligned key with React Web Broadcaster
+                                val avatar = data.optString("avatar", "")
+                                
+                                // Safeguard against memory leak crashes when background updates arrive as the app is exiting
+                                if (!isFinishing && !isDestroyed) {
+                                    runOnUiThread {
+                                        showFloatingEmoji(emoji, username, avatar)
                                     }
                                 }
                             }
                         }
-                        
-                        mSocket?.connect()
-                    } catch (e: Exception) {
-                        e.printStackTrace()
                     }
-                }
-
-                private fun setupEmojiButtons() {
-                    findViewById<Button>(R.id.btnEmojiHeart).setOnClickListener { sendEmoji("❤️") }
-                    findViewById<Button>(R.id.btnEmojiFire).setOnClickListener { sendEmoji("🔥") }
-                    findViewById<Button>(R.id.btnEmojiCrown).setOnClickListener { sendEmoji("👑") }
-                    findViewById<Button>(R.id.btnEmojiHeadphones).setOnClickListener { sendEmoji("🎧") }
-                    findViewById<Button>(R.id.btnEmojiStar).setOnClickListener { sendEmoji("🌟") }
-                }
-
-                private fun sendEmoji(emoji: String) {
-                    var username = "Listener" // Default fallback sender name matching React spec
-                    var avatar = ""
-
-                    // Safely checks Firebase Auth if initialized, otherwise gracefully defaults to Anonymous
-                    try {
-                        val auth = FirebaseAuth.getInstance()
-                        val user = auth.currentUser
-                        if (user != null) {
-                            username = user.displayName ?: "Listener"
-                            avatar = user.photoUrl?.toString() ?: ""
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-
-                    // Instantly play the float animation locally for immediate, lag-free feedback
-                    showFloatingEmoji(emoji, username, avatar)
                     
-                    // Emit package to backend server
-                    if (mSocket != null && mSocket!!.connected()) {
-                        try {
-                            val payload = JSONObject().apply {
-                                put("emoji", emoji)
-                                put("sender", username) // Send under "sender"
-                                put("avatar", avatar)
-                            }
-                            mSocket?.emit("send-emoji", payload)
-                        } catch (e: Exception) {
-                            e.printStackTrace()
+                    mSocket?.connect()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            private fun setupEmojiButtons() {
+                findViewById<Button>(R.id.btnEmojiHeart).setOnClickListener { sendEmoji("❤️") }
+                findViewById<Button>(R.id.btnEmojiFire).setOnClickListener { sendEmoji("🔥") }
+                findViewById<Button>(R.id.btnEmojiCrown).setOnClickListener { sendEmoji("👑") }
+                findViewById<Button>(R.id.btnEmojiHeadphones).setOnClickListener { sendEmoji("🎧") }
+                findViewById<Button>(R.id.btnEmojiStar).setOnClickListener { sendEmoji("🌟") }
+            }
+
+            private fun sendEmoji(emoji: String) {
+                var username = "Listener" // Default fallback sender name matching React spec
+                var avatar = ""
+
+                // Safely checks Firebase Auth if initialized, otherwise gracefully defaults to Anonymous
+                try {
+                    val auth = FirebaseAuth.getInstance()
+                    val user = auth.currentUser
+                    if (user != null) {
+                        username = user.displayName ?: "Listener"
+                        avatar = user.photoUrl?.toString() ?: ""
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
+                // Instantly play the float animation locally for immediate, lag-free feedback
+                showFloatingEmoji(emoji, username, avatar)
+                
+                // Emit package to backend server
+                if (mSocket != null && mSocket!!.connected()) {
+                    try {
+                        val payload = JSONObject().apply {
+                            put("emoji", emoji)
+                            put("sender", username) // Send under "sender"
+                            put("avatar", avatar)
+                        }
+                        mSocket?.emit("send-emoji", payload)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+
+            private fun showFloatingEmoji(emoji: String, username: String, avatar: String) {
+                runOnUiThread {
+                    // Create translucent OLED styled reaction badge containing the sender's username
+                    val badgeView = TextView(this).apply {
+                        text = "$username: $emoji"
+                        setTextColor(android.graphics.Color.WHITE)
+                        textSize = 14f
+                        setTypeface(null, android.graphics.Typeface.BOLD)
+                        setBackgroundResource(R.drawable.reaction_badge_bg)
+                        setPadding(24, 12, 24, 12)
+                        
+                        layoutParams = FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.WRAP_CONTENT,
+                            FrameLayout.LayoutParams.WRAP_CONTENT
+                        ).apply {
+                            gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
                         }
                     }
-                }
 
-                private fun showFloatingEmoji(emoji: String, username: String, avatar: String) {
-                    runOnUiThread {
-                        // Create translucent OLED styled reaction badge containing the sender's username
-                        val badgeView = TextView(this).apply {
-                            text = "$username: $emoji"
-                            setTextColor(android.graphics.Color.WHITE)
-                            textSize = 14f
-                            setTypeface(null, android.graphics.Typeface.BOLD)
-                            setBackgroundResource(R.drawable.reaction_badge_bg)
-                            setPadding(24, 12, 24, 12)
-                            
-                            layoutParams = FrameLayout.LayoutParams(
-                                FrameLayout.LayoutParams.WRAP_CONTENT,
-                                FrameLayout.LayoutParams.WRAP_CONTENT
-                            ).apply {
-                                gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
-                            }
+                    emojiContainer.addView(badgeView)
+
+                    // Get screen width and height dynamically to animate perfectly on any screen size
+                    val displayMetrics = resources.displayMetrics
+                    val screenHeight = displayMetrics.heightPixels.toFloat()
+                    val screenWidth = displayMetrics.widthPixels.toFloat()
+
+                    // Randomize horizontal starting point across the middle 60% of the screen
+                    val randomX = ((Math.random() * (screenWidth * 0.6)) - (screenWidth * 0.3)).toFloat()
+                    badgeView.translationX = randomX
+
+                    // Thread-isolated property animation moves vertically up and fades away
+                    badgeView.animate()
+                        .translationY(-screenHeight) // Float all the way to the top of the screen
+                        .alpha(0f)
+                        .scaleX(1.1f)
+                        .scaleY(1.1f)
+                        .setDuration(2500) // 2.5 seconds floating time
+                        .setInterpolator(android.view.animation.AccelerateDecelerateInterpolator())
+                        .withEndAction {
+                            emojiContainer.removeView(badgeView) // Avoid memory leaks
                         }
-
-                        emojiContainer.addView(badgeView)
-
-                        // Get screen width and height dynamically to animate perfectly on any screen size
-                        val displayMetrics = resources.displayMetrics
-                        val screenHeight = displayMetrics.heightPixels.toFloat()
-                        val screenWidth = displayMetrics.widthPixels.toFloat()
-
-                        // Randomize horizontal starting point across the middle 60% of the screen
-                        val randomX = ((Math.random() * (screenWidth * 0.6)) - (screenWidth * 0.3)).toFloat()
-                        badgeView.translationX = randomX
-
-                        // Thread-isolated property animation moves vertically up and fades away
-                        badgeView.animate()
-                            .translationY(-screenHeight) // Float all the way to the top of the screen
-                            .alpha(0f)
-                            .scaleX(1.1f)
-                            .scaleY(1.1f)
-                            .setDuration(2500) // 2.5 seconds floating time
-                            .setInterpolator(android.view.animation.AccelerateDecelerateInterpolator())
-                            .withEndAction {
-                                emojiContainer.removeView(badgeView) // Avoid memory leaks
-                            }
-                            .start()
-                    }
+                        .start()
                 }
+            }
 
-                private fun togglePlayback() {
-                    if (!AudioService.isStreamPlaying && !AudioService.isConnecting) {
-                        startPlaybackService()
-                    } else {
-                        stopPlaybackService()
-                    }
+            private fun togglePlayback() {
+                if (!AudioService.isStreamPlaying && !AudioService.isConnecting) {
+                    startPlaybackService()
+                } else {
+                    stopPlaybackService()
                 }
+            }
 
-                private fun startPlaybackService() {
-                    val intent = Intent(this, AudioService::class.java).apply {
-                        action = AudioService.ACTION_PLAY
-                    }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        startForegroundService(intent)
-                    } else {
-                        startService(intent)
-                    }
+            private fun startPlaybackService() {
+                val intent = Intent(this, AudioService::class.java).apply {
+                    action = AudioService.ACTION_PLAY
                 }
-
-                private fun stopPlaybackService() {
-                    val intent = Intent(this, AudioService::class.java).apply {
-                        action = AudioService.ACTION_STOP
-                    }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(intent)
+                } else {
                     startService(intent)
                 }
+            }
 
-                private fun updateUIState() {
-                    if (AudioService.isConnecting) {
-                        tvStatus.text = "CONNECTING..."
-                        tvStatus.setTextColor(android.graphics.Color.parseColor("#888888"))
-                        tvLiveStatus.text = "CONNECTING"
-                        tvLiveStatus.setTextColor(android.graphics.Color.parseColor("#888888"))
-                        btnPlay.isEnabled = false
-                        btnPlay.text = "Listen"
-                        liveDot.clearAnimation()
-                        liveDot.visibility = View.GONE
-                        stopVinylRotation()
-                    } else if (AudioService.isStreamPlaying) {
-                        btnPlay.text = "Pause"
-                        btnPlay.isEnabled = true
-                        
-                        tvStatus.text = "NOW PLAYING LIVE"
-                        tvStatus.setTextColor(android.graphics.Color.parseColor("#5EFF00"))
-                        
+            private fun stopPlaybackService() {
+                val intent = Intent(this, AudioService::class.java).apply {
+                    action = AudioService.ACTION_STOP
+                }
+                startService(intent)
+            }
+
+            private fun updateUIState() {
+                if (AudioService.isConnecting) {
+                    tvStatus.text = "CONNECTING..."
+                    tvStatus.setTextColor(android.graphics.Color.parseColor("#888888"))
+                    tvLiveStatus.text = "CONNECTING"
+                    tvLiveStatus.setTextColor(android.graphics.Color.parseColor("#888888"))
+                    btnPlay.isEnabled = false
+                    btnPlay.text = "Listen"
+                    liveDot.clearAnimation()
+                    liveDot.visibility = View.GONE
+                    stopVinylRotation()
+                } else if (AudioService.isStreamPlaying) {
+                    btnPlay.text = "Pause"
+                    btnPlay.isEnabled = true
+                    
+                    tvStatus.text = "NOW PLAYING LIVE"
+                    tvStatus.setTextColor(android.graphics.Color.parseColor("#5EFF00"))
+                    
                     tvLiveStatus.text = "LIVE"
                     tvLiveStatus.setTextColor(android.graphics.Color.parseColor("#5EFF00"))
                     
