@@ -243,10 +243,10 @@ jobs:
         os.makedirs("app/src/main/res/drawable", exist_ok=True)
         with open("app/src/main/res/drawable/green_dot.xml", "w") as f:
             f.write("""<?xml version="1.0" encoding="utf-8"?>
-        <shape xmlns:android="http://schemas.android.com/apk/res/android"
-            android:shape="oval">
-            <solid android:color="#5EFF00" />
-        </shape>""")
+            <shape xmlns:android="http://schemas.android.com/apk/res/android"
+                android:shape="oval">
+                <solid android:color="#5EFF00" />
+            </shape>""")
 
     # Creates the reaction badge OLED background design
     - name: Create reaction_badge_bg drawable
@@ -263,7 +263,7 @@ jobs:
             <stroke android:width="1dp" android:color="#335EFF00" />
         </shape>""")
 
-    # Overwrites the UI layout adding transparent floating emoji canvas, designated reaction buttons, and Live Chat Panel
+    # Overwrites the UI layout with the OLED design matching Image 2
     - name: Force Overwrite activity_main.xml
       shell: python
       run: |
