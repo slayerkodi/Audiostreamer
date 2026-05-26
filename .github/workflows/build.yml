@@ -263,7 +263,7 @@ jobs:
             <stroke android:width="1dp" android:color="#335EFF00" />
         </shape>""")
 
-    # Overwrites the UI layout with the OLED design matching Image 2
+    # Overwrites the UI layout adding transparent floating emoji canvas and designated reaction buttons
     - name: Force Overwrite activity_main.xml
       shell: python
       run: |
@@ -1046,6 +1046,8 @@ jobs:
                     val opts = IO.Options().apply {
                         forceNew = true
                         reconnection = true
+                        // Force WebSockets transport to resolve Cloud Run routing/handshake issues
+                        transports = arrayOf("websocket") 
                     }
                     mSocket = IO.socket(socketUrl, opts)
                     
@@ -1058,8 +1060,11 @@ jobs:
                                 val username = data.optString("username", "Anonymous Listener")
                                 val avatar = data.optString("avatar", "")
                                 
-                                runOnUiThread {
-                                    showFloatingEmoji(emoji, username, avatar)
+                                // Safeguard against memory leak crashes when background updates arrive as the app is exiting
+                                if (!isFinishing && !isDestroyed) {
+                                    runOnUiThread {
+                                        showFloatingEmoji(emoji, username, avatar)
+                                    }
                                 }
                             }
                         }
@@ -1080,10 +1085,20 @@ jobs:
             }
 
             private fun sendEmoji(emoji: String) {
-                // Pulls metadata details directly from active Firebase Auth state
-                val user = FirebaseAuth.getInstance().currentUser
-                val username = user?.displayName ?: "Anonymous Listener"
-                val avatar = user?.photoUrl?.toString() ?: ""
+                var username = "Anonymous Listener"
+                var avatar = ""
+
+                // Safely checks Firebase Auth if initialized, otherwise gracefully defaults to Anonymous
+                try {
+                    val auth = FirebaseAuth.getInstance()
+                    val user = auth.currentUser
+                    if (user != null) {
+                        username = user.displayName ?: "Anonymous Listener"
+                        avatar = user.photoUrl?.toString() ?: ""
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
 
                 // Instantly play the float animation locally for immediate, lag-free feedback
                 showFloatingEmoji(emoji, username, avatar)
@@ -1250,7 +1265,7 @@ jobs:
 
             override fun onResume() {
                 super.onResume()
-                updateUIState() // Syncs UI whenever app enters foreground
+                updateUIState()
             }
 
             override fun onDestroy() {
