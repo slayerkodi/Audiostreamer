@@ -46,7 +46,8 @@ jobs:
       uses: gradle/actions/setup-gradle@v4
       with:
         gradle-version: '8.9'
-        # Overwrites app/build.gradle to add WorkManager and Socket.io dependencies
+
+    # Overwrites app/build.gradle to add WorkManager, Socket.io, and Firebase Auth dependencies
     - name: Force Overwrite app/build.gradle
       shell: python
       run: |
@@ -92,6 +93,9 @@ jobs:
             implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
             implementation 'androidx.work:work-runtime-ktx:2.9.1'
             
+            // Firebase Authentication
+            implementation 'com.google.firebase:firebase-auth-ktx:22.3.1'
+            
             // Native Socket.io engine (excludes org.json to prevent duplicate class compile conflicts)
             implementation ('io.socket:socket.io-client:2.1.0') {
                 exclude group: 'org.json', module: 'json'
@@ -108,7 +112,8 @@ jobs:
             f.write("""<resources>
             <string name="app_name">Herbdout Radio</string>
         </resources>""")
-        # Configures the colors file for the custom launcher background
+
+    # Configures the colors file for the custom launcher background
     - name: Create colors.xml
       shell: python
       run: |
@@ -207,7 +212,8 @@ jobs:
             </application>
 
         </manifest>""")
-        # Automatically creates/fixes the AndroidX settings
+
+    # Automatically creates/fixes the AndroidX settings
     - name: Configure AndroidX Settings
       run: |
         echo "android.useAndroidX=true" > gradle.properties
@@ -242,7 +248,22 @@ jobs:
             <solid android:color="#5EFF00" />
         </shape>""")
 
-    # Overwrites the UI layout adding transparent floating emoji canvas and standard reaction buttons
+    # Creates the reaction badge OLED background design
+    - name: Create reaction_badge_bg drawable
+      shell: python
+      run: |
+        import os
+        os.makedirs("app/src/main/res/drawable", exist_ok=True)
+        with open("app/src/main/res/drawable/reaction_badge_bg.xml", "w") as f:
+            f.write("""<?xml version="1.0" encoding="utf-8"?>
+        <shape xmlns:android="http://schemas.android.com/apk/res/android"
+            android:shape="rectangle">
+            <solid android:color="#E6111511" />
+            <corners android:radius="20dp" />
+            <stroke android:width="1dp" android:color="#335EFF00" />
+        </shape>""")
+
+    # Overwrites the UI layout with the OLED design matching Image 2
     - name: Force Overwrite activity_main.xml
       shell: python
       run: |
@@ -509,34 +530,42 @@ jobs:
                         <Button
                             android:id="@+id/btnEmojiHeart"
                             style="@style/Widget.Material3.Button.TextButton"
-                            android:layout_width="60dp"
+                            android:layout_width="55dp"
                             android:layout_height="50dp"
                             android:text="❤️"
-                            android:textSize="22sp" />
+                            android:textSize="20sp" />
 
                         <Button
                             android:id="@+id/btnEmojiFire"
                             style="@style/Widget.Material3.Button.TextButton"
-                            android:layout_width="60dp"
+                            android:layout_width="55dp"
                             android:layout_height="50dp"
                             android:text="🔥"
-                            android:textSize="22sp" />
+                            android:textSize="20sp" />
 
                         <Button
                             android:id="@+id/btnEmojiCrown"
                             style="@style/Widget.Material3.Button.TextButton"
-                            android:layout_width="60dp"
+                            android:layout_width="55dp"
                             android:layout_height="50dp"
                             android:text="👑"
-                            android:textSize="22sp" />
+                            android:textSize="20sp" />
+
+                        <Button
+                            android:id="@+id/btnEmojiHeadphones"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="55dp"
+                            android:layout_height="50dp"
+                            android:text="🎧"
+                            android:textSize="20sp" />
 
                         <Button
                             android:id="@+id/btnEmojiStar"
                             style="@style/Widget.Material3.Button.TextButton"
-                            android:layout_width="60dp"
+                            android:layout_width="55dp"
                             android:layout_height="50dp"
-                            android:text="⭐"
-                            android:textSize="22sp" />
+                            android:text="🌟"
+                            android:textSize="20sp" />
                     </LinearLayout>
 
                     <TextView
@@ -577,8 +606,8 @@ jobs:
                 android:focusable="false" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>""")
-        
-# Creates the silent background worker that checks stream connectivity and launches push notifications
+
+    # Creates the silent background worker that checks stream connectivity and launches push notifications
     - name: Create StreamCheckWorker.kt
       shell: python
       run: |
@@ -688,7 +717,8 @@ jobs:
                 }
             }
         }""")
-        # Creates the Foreground AudioService for multitasking and screen off playback
+
+    # Creates the Foreground AudioService for multitasking and screen off playback
     - name: Create AudioService.kt
       shell: python
       run: |
@@ -893,12 +923,8 @@ jobs:
                 stopPlaying()
             }
         }""")
-                        setupEmojiButtons()
-            }
 
-            private fun checkAndRequestPermissions() {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-# Overwrites MainActivity.kt to bind to the Foreground AudioService and handle UI changes
+    # Overwrites MainActivity.kt to bind to the Foreground AudioService and handle UI changes
     # Backslashes are escaped (\\n) so Python writes it to the Kotlin file correctly as \n
     - name: Force Overwrite MainActivity.kt
       shell: python
@@ -927,8 +953,10 @@ jobs:
         import androidx.work.ExistingPeriodicWorkPolicy
         import androidx.work.PeriodicWorkRequestBuilder
         import androidx.work.WorkManager
+        import com.google.firebase.auth.FirebaseAuth
         import io.socket.client.IO
         import io.socket.client.Socket
+        import org.json.JSONObject
         import java.util.concurrent.TimeUnit
 
         class MainActivity : AppCompatActivity() {
@@ -943,8 +971,8 @@ jobs:
             private var rotateAnim: RotateAnimation? = null
             private var mSocket: Socket? = null
             
-            // CHANGE THIS to your actual server.cjs Socket.io address (e.g., "http://your-server-domain.com:3000")
-            private val socketUrl = "http://uk18freenew.listen2myradio.com:3000"
+            // Explicitly connects to your central server cloud instance URL
+            private val socketUrl = "https://ais-pre-eov36f74tvwrwzzr5kg2pz-787301755010.europe-west2.run.app"
 
             override fun onCreate(savedInstanceState: Bundle?) {
                 super.onCreate(savedInstanceState)
@@ -1024,11 +1052,14 @@ jobs:
                     // Listen for emojis sent from other users or broadcaster
                     mSocket?.on("new-emoji") { args ->
                         if (args.isNotEmpty()) {
-                            val emoji = args[0] as? String
-                            if (emoji != null) {
-                                // Only float incoming emojis if they aren't duplicates (handled by server broadcast)
+                            val data = args[0] as? JSONObject
+                            if (data != null) {
+                                val emoji = data.optString("emoji", "❤️")
+                                val username = data.optString("username", "Anonymous Listener")
+                                val avatar = data.optString("avatar", "")
+                                
                                 runOnUiThread {
-                                    showFloatingEmoji(emoji)
+                                    showFloatingEmoji(emoji, username, avatar)
                                 }
                             }
                         }
@@ -1044,22 +1075,43 @@ jobs:
                 findViewById<Button>(R.id.btnEmojiHeart).setOnClickListener { sendEmoji("❤️") }
                 findViewById<Button>(R.id.btnEmojiFire).setOnClickListener { sendEmoji("🔥") }
                 findViewById<Button>(R.id.btnEmojiCrown).setOnClickListener { sendEmoji("👑") }
-                findViewById<Button>(R.id.btnEmojiStar).setOnClickListener { sendEmoji("⭐") }
+                findViewById<Button>(R.id.btnEmojiHeadphones).setOnClickListener { sendEmoji("🎧") }
+                findViewById<Button>(R.id.btnEmojiStar).setOnClickListener { sendEmoji("🌟") }
             }
 
             private fun sendEmoji(emoji: String) {
-                // Instantly play the float animation locally for immediate feedback
-                showFloatingEmoji(emoji)
+                // Pulls metadata details directly from active Firebase Auth state
+                val user = FirebaseAuth.getInstance().currentUser
+                val username = user?.displayName ?: "Anonymous Listener"
+                val avatar = user?.photoUrl?.toString() ?: ""
+
+                // Instantly play the float animation locally for immediate, lag-free feedback
+                showFloatingEmoji(emoji, username, avatar)
                 
-                // Emit to the server so other users can see it
-                mSocket?.emit("send-emoji", emoji)
+                // Emit package to backend server
+                try {
+                    val payload = JSONObject().apply {
+                        put("emoji", emoji)
+                        put("username", username)
+                        put("avatar", avatar)
+                    }
+                    mSocket?.emit("send-emoji", payload)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
 
-            private fun showFloatingEmoji(emoji: String) {
+            private fun showFloatingEmoji(emoji: String, username: String, avatar: String) {
                 runOnUiThread {
-                    val textView = TextView(this).apply {
-                        text = emoji
-                        textSize = 32f
+                    // Create translucent OLED styled reaction badge containing the sender's username
+                    val badgeView = TextView(this).apply {
+                        text = "$username: $emoji"
+                        setTextColor(android.graphics.Color.WHITE)
+                        textSize = 14f
+                        setTypeface(null, android.graphics.Typeface.BOLD)
+                        setBackgroundResource(R.drawable.reaction_badge_bg)
+                        setPadding(24, 12, 24, 12)
+                        
                         layoutParams = FrameLayout.LayoutParams(
                             FrameLayout.LayoutParams.WRAP_CONTENT,
                             FrameLayout.LayoutParams.WRAP_CONTENT
@@ -1068,7 +1120,7 @@ jobs:
                         }
                     }
 
-                    emojiContainer.addView(textView)
+                    emojiContainer.addView(badgeView)
 
                     // Get screen width and height dynamically to animate perfectly on any screen size
                     val displayMetrics = resources.displayMetrics
@@ -1077,17 +1129,18 @@ jobs:
 
                     // Randomize horizontal starting point across the middle 60% of the screen
                     val randomX = ((Math.random() * (screenWidth * 0.6)) - (screenWidth * 0.3)).toFloat()
-                    textView.translationX = randomX
+                    badgeView.translationX = randomX
 
-                    // Animate upwards, expand, and fade away
-                    textView.animate()
+                    // Thread-isolated property animation moves vertically up and fades away
+                    badgeView.animate()
                         .translationY(-screenHeight) // Float all the way to the top of the screen
                         .alpha(0f)
-                        .scaleX(1.4f)
-                        .scaleY(1.4f)
-                        .setDuration(2500) // 2.5 seconds is the sweet spot for floating speed
+                        .scaleX(1.1f)
+                        .scaleY(1.1f)
+                        .setDuration(2500) // 2.5 seconds floating time
+                        .setInterpolator(android.view.animation.AccelerateDecelerateInterpolator())
                         .withEndAction {
-                            emojiContainer.removeView(textView) // Auto cleanup
+                            emojiContainer.removeView(badgeView) // Avoid memory leaks
                         }
                         .start()
                 }
