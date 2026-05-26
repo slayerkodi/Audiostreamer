@@ -263,7 +263,7 @@ jobs:
             <stroke android:width="1dp" android:color="#335EFF00" />
         </shape>""")
 
-    # Overwrites the UI layout adding transparent floating emoji canvas and designated reaction buttons
+    # Overwrites the UI layout with the OLED design matching Image 2
     - name: Force Overwrite activity_main.xml
       shell: python
       run: |
@@ -355,6 +355,20 @@ jobs:
 
                 </LinearLayout>
             </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnToggleChat"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Chat"
+                android:textColor="#5EFF00"
+                app:strokeColor="#5EFF00"
+                app:strokeWidth="1dp"
+                android:layout_marginEnd="24dp"
+                android:layout_marginTop="24dp"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintRight_toRightOf="parent" />
 
             <!-- Centered Player Panel -->
             <com.google.android.material.card.MaterialCardView
@@ -496,6 +510,110 @@ jobs:
                         app:layout_constraintRight_toRightOf="parent" />
 
                 </androidx.constraintlayout.widget.ConstraintLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Slide-out Live Chat Panel -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/chatPanel"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginLeft="24dp"
+                android:layout_marginRight="24dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="24dp"
+                android:visibility="gone"
+                app:cardBackgroundColor="#0B0C0B"
+                app:strokeColor="#335EFF00"
+                app:strokeWidth="1dp"
+                app:cardCornerRadius="24dp"
+                app:layout_constraintTop_toBottomOf="@id/topBar"
+                app:layout_constraintBottom_toTopOf="@id/playerCard">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <!-- Chat Header -->
+                    <RelativeLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Live Chat Room"
+                            android:textColor="#FFFFFF"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            android:layout_alignParentStart="true"
+                            android:layout_centerVertical="true" />
+
+                        <Button
+                            android:id="@+id/btnCloseChat"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="44dp"
+                            android:layout_height="44dp"
+                            android:text="✕"
+                            android:textColor="#888888"
+                            android:textSize="18sp"
+                            android:layout_alignParentEnd="true" />
+                    </RelativeLayout>
+
+                    <!-- Scrollable Messages Container -->
+                    <ScrollView
+                        android:id="@+id/chatScrollView"
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_weight="1"
+                        android:layout_marginBottom="12dp"
+                        android:scrollbars="vertical">
+
+                        <LinearLayout
+                            android:id="@+id/chatMessagesContainer"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:animateLayoutChanges="true" />
+                    </ScrollView>
+
+                    <!-- Chat Input Row -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <EditText
+                            android:id="@+id/etChatInput"
+                            android:layout_width="0dp"
+                            android:layout_height="48dp"
+                            android:layout_weight="1"
+                            android:hint="Type a message..."
+                            android:textColorHint="#555555"
+                            android:textColor="#FFFFFF"
+                            android:background="@drawable/reaction_badge_bg"
+                            android:paddingLeft="16dp"
+                            android:paddingRight="16dp"
+                            android:textSize="14sp"
+                            android:imeOptions="actionSend"
+                            android:inputType="textShortMessage"
+                            android:layout_marginEnd="8dp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSendChat"
+                            android:layout_width="wrap_content"
+                            android:layout_height="48dp"
+                            android:text="Send"
+                            android:textColor="#000000"
+                            android:backgroundTint="#5EFF00"
+                            android:textStyle="bold"
+                            app:cornerRadius="24dp" />
+                    </LinearLayout>
+
+                </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <!-- Bottom Control & Emoji Panel -->
@@ -664,7 +782,7 @@ jobs:
                     
                     if (connection.responseCode == 200) {
                         val html = connection.inputStream.bufferedReader().use { it.readText() }
-                        val regex = "https?://[a-zA-Z0-9.-]+:[0-9]+/[a-zA-Z0-9_.-]+".toRegex()
+                        val regex = "https?://[a-zA-4-9.-]+:[0-9]+/[a-zA-Z0-9_.-]+".toRegex()
                         val match = regex.find(html)
                         if (match != null) {
                             activeUrl = match.value
@@ -854,8 +972,9 @@ jobs:
                                     isStreamPlaying = true
                                     notifyStateChanged()
                                     
-                                    val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                                    manager.notify(notificationId, createNotification("Now Playing Live"))
+                                    val manager = getSystemService(Context.NOTIFICATION_SERVICE) as Manager
+                                    val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                                    notificationManager.notify(notificationId, createNotification("Now Playing Live"))
                                 }
                                 setOnErrorListener { _, _, _ ->
                                     handleError()
@@ -1022,6 +1141,14 @@ jobs:
             private lateinit var liveDot: View
             private lateinit var vinylRecord: View
             private lateinit var emojiContainer: FrameLayout
+            private lateinit var chatMessagesContainer: android.widget.LinearLayout
+            private lateinit var chatScrollView: android.widget.ScrollView
+            private lateinit var etChatInput: android.widget.EditText
+            private lateinit var btnSendChat: android.widget.Button
+            private lateinit var chatPanel: View
+            private lateinit var recordCard: View
+            private lateinit var btnToggleChat: Button
+            private lateinit var btnCloseChat: Button
 
             private var rotateAnim: RotateAnimation? = null
             private var mSocket: Socket? = null
@@ -1043,9 +1170,29 @@ jobs:
                 liveDot = findViewById(R.id.liveDot)
                 vinylRecord = findViewById(R.id.vinylRecord)
                 emojiContainer = findViewById(R.id.emojiContainer)
+                chatMessagesContainer = findViewById(R.id.chatMessagesContainer)
+                chatScrollView = findViewById(R.id.chatScrollView)
+                etChatInput = findViewById(R.id.etChatInput)
+                btnSendChat = findViewById(R.id.btnSendChat)
+                chatPanel = findViewById(R.id.chatPanel)
+                recordCard = findViewById(R.id.recordCard)
+                btnToggleChat = findViewById(R.id.btnToggleChat)
+                btnCloseChat = findViewById(R.id.btnCloseChat)
 
                 btnPlay.setOnClickListener {
                     togglePlayback()
+                }
+
+                btnToggleChat.setOnClickListener {
+                    toggleChatView(true)
+                }
+
+                btnCloseChat.setOnClickListener {
+                    toggleChatView(false)
+                }
+
+                btnSendChat.setOnClickListener {
+                    sendChatMessage()
                 }
 
                 // Check and request push notifications permission
@@ -1120,6 +1267,36 @@ jobs:
                                     runOnUiThread {
                                         showFloatingEmoji(emoji, username, avatar)
                                     }
+                                }
+                            }
+                        }
+                    }
+
+                    // Subscribe to chat history
+                    mSocket?.on("chat-history") { args ->
+                        if (args.isNotEmpty()) {
+                            val history = args[0] as? org.json.JSONArray
+                            if (history != null) {
+                                runOnUiThread {
+                                    chatMessagesContainer.removeAllViews()
+                                    for (i in 0 until history.length()) {
+                                        val msg = history.optJSONObject(i)
+                                        if (msg != null) {
+                                            addChatMessageToUI(msg)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Subscribe to live chat messages
+                    mSocket?.on("chat-message") { args ->
+                        if (args.isNotEmpty()) {
+                            val msg = args[0] as? JSONObject
+                            if (msg != null) {
+                                runOnUiThread {
+                                    addChatMessageToUI(msg)
                                 }
                             }
                         }
@@ -1215,6 +1392,115 @@ jobs:
                             emojiContainer.removeView(badgeView) // Avoid memory leaks
                         }
                         .start()
+                }
+            }
+
+            private fun toggleChatView(show: Boolean) {
+                if (show) {
+                    recordCard.visibility = View.GONE
+                    chatPanel.visibility = View.VISIBLE
+                    btnToggleChat.visibility = View.GONE
+                    chatScrollView.post {
+                        chatScrollView.fullScroll(View.FOCUS_DOWN)
+                    }
+                } else {
+                    chatPanel.visibility = View.GONE
+                    recordCard.visibility = View.VISIBLE
+                    btnToggleChat.visibility = View.VISIBLE
+                }
+            }
+
+            private fun sendChatMessage() {
+                val text = etChatInput.text.toString().trim()
+                if (text.isEmpty()) return
+
+                var username = "Listener"
+                var avatar = ""
+
+                try {
+                    val auth = FirebaseAuth.getInstance()
+                    val user = auth.currentUser
+                    if (user != null) {
+                        username = user.displayName ?: "Listener"
+                        avatar = user.photoUrl?.toString() ?: ""
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
+                if (mSocket != null && mSocket!!.connected()) {
+                    try {
+                        val payload = JSONObject().apply {
+                            put("sender", username)
+                            put("avatar", avatar)
+                            put("text", text)
+                        }
+                        mSocket?.emit("send-chat", payload)
+                        etChatInput.text.clear()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+
+            private fun addChatMessageToUI(msg: JSONObject) {
+                val sender = msg.optString("sender", "Listener")
+                val text = msg.optString("text", "")
+                if (text.isEmpty()) return
+
+                // Create custom styled vertical message bubble layout
+                val bubbleLayout = android.widget.LinearLayout(this).apply {
+                    orientation = android.widget.LinearLayout.VERTICAL
+                    setBackgroundResource(R.drawable.reaction_badge_bg)
+                    setPadding(24, 16, 24, 16)
+                    
+                    val params = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        setMargins(0, 0, 0, 16)
+                    }
+                    layoutParams = params
+                }
+
+                // Sender display username (Green)
+                val tvSender = TextView(this).apply {
+                    text = sender
+                    setTextColor(android.graphics.Color.parseColor("#5EFF00"))
+                    textSize = 12f
+                    setTypeface(null, android.graphics.Typeface.BOLD)
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        setMargins(0, 0, 0, 4)
+                    }
+                }
+
+                // Message text content (White)
+                val tvText = TextView(this).apply {
+                    text = text
+                    setTextColor(android.graphics.Color.WHITE)
+                    textSize = 14f
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                }
+
+                bubbleLayout.addView(tvSender)
+                bubbleLayout.addView(tvText)
+
+                chatMessagesContainer.addView(bubbleLayout)
+
+                // Limit displayed history count to preserve device memory performance
+                if (chatMessagesContainer.childCount > 100) {
+                    chatMessagesContainer.removeViewAt(0)
+                }
+
+                // Auto Scroll down
+                chatScrollView.post {
+                    chatScrollView.fullScroll(View.FOCUS_DOWN)
                 }
             }
 
