@@ -185,8 +185,7 @@ jobs:
           pointer-events: none;
           z-index: 50;
         }""")
-
-    # Overwrites App.tsx with the first half of the React/Socket/Scraper codebase
+        # Overwrites App.tsx with the first half of the React/Socket/Scraper codebase
     - name: Force Overwrite src/App.tsx (Part 1 of 2)
       shell: python
       run: |
@@ -375,7 +374,7 @@ jobs:
               setIsBuffering(false);
             } else {
               setIsBuffering(true);
-              // Reconnect fresh to the stream URL to avoid playing stale buffers
+              // Reconnect fresh to the resolved dynamic stream URL state
               audioRef.current.src = streamUrl;
               audioRef.current.load();
               audioRef.current.play()
@@ -713,8 +712,7 @@ jobs:
           );
         }
         """)
-
-    # Installs NPM modules and compiles web assets into /dist
+        # Installs NPM modules and compiles web assets into /dist
     - name: NPM Install and Web SPA Build
       run: |
         npm install
@@ -725,6 +723,39 @@ jobs:
       run: |
         npx cap init "Herbdout Radio" "com.example.herbdoutradio" --web-dir=dist
         npx cap add android
+
+    # Configures the Capacitor Android Scheme using Python to avoid WebView blocks
+    - name: Configure Capacitor Android Scheme
+      shell: python
+      run: |
+        import os, json
+        # Configure JSON if it exists
+        if os.path.exists("capacitor.config.json"):
+            with open("capacitor.config.json", "r") as f:
+                data = json.load(f)
+            if "server" not in data:
+                data["server"] = {}
+            data["server"]["androidScheme"] = "http"
+            with open("capacitor.config.json", "w") as f:
+                json.dump(data, f, indent=2)
+        # Configure TS if it exists
+        if os.path.exists("capacitor.config.ts"):
+            with open("capacitor.config.ts", "r") as f:
+                content = f.read()
+            if "androidScheme" in content:
+                content = content.replace("'https'", "'http'").replace('"https"', '"http"')
+            else:
+                if "server:" in content:
+                    content = content.replace("server: {", "server: {\\n    androidScheme: 'http',")
+                else:
+                    content = content.replace("const config: CapacitorConfig = {", "const config: CapacitorConfig = {\\n  server: {\\n    androidScheme: 'http'\\n  },")
+            with open("capacitor.config.ts", "w") as f:
+                f.write(content)
+        print("Enforced HTTP scheme in Capacitor config.")
+
+    # Synchronizes the modified configuration and Web files to the Android directory
+    - name: Sync Capacitor Android Project
+      run: |
         npx cap sync android
 
     # Compiles the Android project with the embedded web container into an .apk file
@@ -746,4 +777,3 @@ jobs:
         name: App-Debug-APK
         path: android/app/build/outputs/apk/debug/app-debug.apk
         if-no-files-found: error
-        
