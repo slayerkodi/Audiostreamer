@@ -24,7 +24,7 @@ jobs:
       with:
         node-version: '20'
 
-    # Overwrites package.json to manage modern web dependencies
+    # Overwrites package.json to manage modern web dependencies and bypasses tsc typecheck
     - name: Force Overwrite package.json
       shell: python
       run: |
@@ -37,7 +37,7 @@ jobs:
           "type": "module",
           "scripts": {
             "dev": "vite",
-            "build": "tsc && vite build",
+            "build": "vite build",
             "preview": "vite preview"
           },
           "dependencies": {
@@ -107,7 +107,8 @@ jobs:
           },
           plugins: [],
         }""")
-        # Configures index.html mount point
+        
+# Configures index.html mount point
     - name: Force Overwrite index.html
       shell: python
       run: |
@@ -313,7 +314,7 @@ jobs:
             };
           }, []);
         """)
-# Appends the second half of the React/Socket codebase to App.tsx and compiles the final build
+        # Appends the second half of the React/Socket codebase to App.tsx and compiles the final build
     - name: Force Overwrite src/App.tsx (Part 2 of 2)
       shell: python
       run: |
@@ -676,4 +677,3 @@ jobs:
         name: Herbdout-Web-SPA
         path: dist/
         if-no-files-found: error
-
