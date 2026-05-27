@@ -185,7 +185,8 @@ jobs:
           pointer-events: none;
           z-index: 50;
         }""")
-        # Overwrites App.tsx with the first half of the React/Socket/Scraper codebase
+
+    # Overwrites App.tsx with the first half of the React/Socket/Scraper codebase
     - name: Force Overwrite src/App.tsx (Part 1 of 2)
       shell: python
       run: |
@@ -353,7 +354,7 @@ jobs:
             };
           }, []);
         """)
-        # Appends the second half of the React/Socket codebase to App.tsx
+# Appends the second half of the React/Socket codebase to App.tsx
     - name: Force Overwrite src/App.tsx (Part 2 of 2)
       shell: python
       run: |
@@ -374,7 +375,7 @@ jobs:
               setIsBuffering(false);
             } else {
               setIsBuffering(true);
-              // Reconnect fresh to the resolved dynamic stream URL state
+              // Reconnect fresh to the resolved dynamic stream URL state (Fixes stalled play issue)
               audioRef.current.src = streamUrl;
               audioRef.current.load();
               audioRef.current.play()
@@ -712,19 +713,19 @@ jobs:
           );
         }
         """)
-        # Installs NPM modules and compiles web assets into /dist
+
+    # Installs NPM modules and compiles web assets into /dist
     - name: NPM Install and Web SPA Build
       run: |
         npm install
         npm run build
-
-    # Initializes Capacitor, configures Android platforms, and syncs web files
+        # Initializes Capacitor, configures Android platforms, and syncs web files
     - name: Package React SPA into Android Container (Capacitor)
       run: |
         npx cap init "Herbdout Radio" "com.example.herbdoutradio" --web-dir=dist
         npx cap add android
 
-    # Configures the Capacitor Android Scheme using Python to avoid WebView blocks
+    # Injects standard http scheme configuration directly into the Capacitor native config (Bypasses WebView Mixed Content blocks)
     - name: Configure Capacitor Android Scheme
       shell: python
       run: |
@@ -753,12 +754,110 @@ jobs:
                 f.write(content)
         print("Enforced HTTP scheme in Capacitor config.")
 
-    # Synchronizes the modified configuration and Web files to the Android directory
+    # Synchronizes modified config and Web files to the native Android directory
     - name: Sync Capacitor Android Project
       run: |
         npx cap sync android
 
-    # Compiles the Android project with the embedded web container into an .apk file
+    # Injects usesCleartextTraffic="true" and POST_NOTIFICATIONS permissions directly into Capacitor's AndroidManifest
+    - name: Inject Cleartext Permissions into Capacitor AndroidManifest
+      shell: python
+      run: |
+        import os
+        manifest_path = "android/app/src/main/AndroidManifest.xml"
+        if os.path.exists(manifest_path):
+            with open(manifest_path, "r") as f:
+                content = f.read()
+            
+            # Enforce usesCleartextTraffic="true" to allow play of non-SSL http:// audio streams
+            if 'android:usesCleartextTraffic="true"' not in content:
+                content = content.replace("<application", '<application android:usesCleartextTraffic="true"')
+            
+            # Add POST_NOTIFICATIONS permission
+            if 'android.permission.POST_NOTIFICATIONS' not in content:
+                content = content.replace("</manifest>", '    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\\n</manifest>')
+                
+            with open(manifest_path, "w") as f:
+                f.write(content)
+            print("Successfully updated AndroidManifest.xml with cleartext and notification permissions.")
+
+    # Injects app renaming variables natively into Capacitor's strings.xml
+    - name: Inject App Name into Capacitor strings.xml
+      shell: python
+      run: |
+        import os
+        strings_path = "android/app/src/main/res/values/strings.xml"
+        if os.path.exists(strings_path):
+            with open(strings_path, "w") as f:
+                f.write("""<?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <string name="app_name">Herbdout Radio</string>
+            <string name="title_activity_main">Herbdout Radio</string>
+            <string name="package_name">com.example.herbdoutradio</string>
+        </resources>""")
+            print("Successfully renamed app in strings.xml")
+
+    # Injects the custom green star launcher icon assets natively into Capacitor's resource folders
+    - name: Inject Custom Star Launcher Drawables & Adaptive Icons
+      shell: python
+      run: |
+        import os
+        os.makedirs("android/app/src/main/res/drawable", exist_ok=True)
+        os.makedirs("android/app/src/main/res/values", exist_ok=True)
+        os.makedirs("android/app/src/main/res/mipmap-anydpi-v26", exist_ok=True)
+        
+        # colors.xml launcher background color
+        with open("android/app/src/main/res/values/colors.xml", "w") as f:
+            f.write("""<?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <color name="ic_launcher_background">#080808</color>
+        </resources>""")
+            
+        # Star logo vector
+        with open("android/app/src/main/res/drawable/ic_star_logo.xml", "w") as f:
+            f.write("""<vector xmlns:android="http://schemas.android.com/apk/res/android"
+            android:width="24dp"
+            android:height="24dp"
+            android:viewportWidth="24"
+            android:viewportHeight="24">
+            <path
+                android:fillColor="#5EFF00"
+                android:pathData="M12,0 L14.8,7.2 L22.1,4.5 L16.8,10.2 L24,12 L16.8,13.8 L22.1,19.5 L14.8,16.8 L12,24 L9.2,16.8 L1.9,19.5 L7.2,13.8 L0,12 L7.2,10.2 L1.9,4.5 L9.2,7.2 Z" />
+        </vector>""")
+            
+        # Star logo launcher vector (scaled)
+        with open("android/app/src/main/res/drawable/ic_star_logo_launcher.xml", "w") as f:
+            f.write("""<vector xmlns:android="http://schemas.android.com/apk/res/android"
+            android:width="108dp"
+            android:height="108dp"
+            android:viewportWidth="108"
+            android:viewportHeight="108">
+            <group
+                android:translateX="30"
+                android:translateY="30"
+                android:scaleX="2"
+                android:scaleY="2">
+                <path
+                    android:fillColor="#5EFF00"
+                    android:pathData="M12,0 L14.8,7.2 L22.1,4.5 L16.8,10.2 L24,12 L16.8,13.8 L22.1,19.5 L14.8,16.8 L12,24 L9.2,16.8 L1.9,19.5 L7.2,13.8 L0,12 L7.2,10.2 L1.9,4.5 L9.2,7.2 Z" />
+            </group>
+        </vector>""")
+            
+        # Adaptive launcher icons
+        adaptive_icon = """<?xml version="1.0" encoding="utf-8"?>
+        <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+            <background android:drawable="@color/ic_launcher_background"/>
+            <foreground android:drawable="@drawable/ic_star_logo_launcher"/>
+        </adaptive-icon>"""
+        
+        with open("android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml", "w") as f:
+            f.write(adaptive_icon)
+        with open("android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml", "w") as f:
+            f.write(adaptive_icon)
+            
+        print("Successfully injected all launcher drawables and icons natively.")
+
+    # Compiles the Android project with the embedded web container and custom native manifest settings into an .apk file
     - name: Compile Android APK with Gradle
       run: |
         cd android
@@ -777,3 +876,4 @@ jobs:
         name: App-Debug-APK
         path: android/app/build/outputs/apk/debug/app-debug.apk
         if-no-files-found: error
+
