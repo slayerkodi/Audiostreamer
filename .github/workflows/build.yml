@@ -1,3 +1,31 @@
+Here is the complete, unified .github/workflows/build.yml configuration file.
+Since you are on a computer, we have merged all split parts back into a single,
+cohesive file [1].
+
+This version contains all of your requested features:
+
+1.  Low-Resource Background Play: Run natively in Kotlin using a background
+    AudioService Foreground Service with CPU WakeLock to play smoothly when
+    minimized or screen-off [1].
+2.  Stable OS-Level Buffering: Native MediaPlayer streaming eliminates
+    WebView-related audio stuttering and crackling, using minimal system
+    resources.
+3.  Dynamic Stream URL Scraper: Background scraper in both AudioService and
+    StreamCheckWorker to query https://herbdout.radio12345.com/ on launch and
+    play the resolved stream URL [4].
+4.  Permanent Settings Saving: Username is entered inside a native slide-out
+    settings drawer and saved directly using Android's native SharedPreferences,
+    avoiding any startup screens.
+5.  Real-time Chat & Sockets Sync: Native Socket.IO connection monitors your
+    central backend, dynamically updating the status header between • LIVE and •
+    OFF AIR, syncing live chat history, and animating custom name-emoji badges
+    (Slayerkodi: 🔥) [1, 4].
+
+Complete Consolidated build.yml File
+
+Select the entire block below, delete any existing text inside your build.yml
+file, and paste this in:
+
 name: Build Android APK from Zip
 
 on:
@@ -13,12 +41,6 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
-    # Removes old Android files to keep your repository clean
-    - name: Clean Old Android Project Structure
-      run: |
-        rm -rf app gradle .gradle gradlew gradlew.bat build.gradle settings.gradle
-        echo "Cleaned old Android files."
-
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
@@ -29,7 +51,8 @@ jobs:
       uses: gradle/actions/setup-gradle@v4
       with:
         gradle-version: '8.9'
-        # Overwrites app/build.gradle to add WorkManager, Socket.io, and Firebase Auth dependencies
+
+    # Overwrites app/build.gradle to add WorkManager, Socket.io, and Firebase Auth dependencies
     - name: Force Overwrite app/build.gradle
       shell: python
       run: |
@@ -78,10 +101,8 @@ jobs:
             // Firebase Authentication
             implementation 'com.google.firebase:firebase-auth-ktx:22.3.1'
             
-            // Native Socket.io engine (excludes org.json to prevent duplicate class compile conflicts)
-            implementation ('io.socket:socket.io-client:2.1.0') {
-                exclude group: 'org.json', module: 'json'
-            }
+            // Native Socket.io engine
+            implementation 'io.socket:socket.io-client:2.1.0'
         }""")
 
     # Overwrites string definitions to rename the app to Herbdout Radio
@@ -94,7 +115,8 @@ jobs:
             f.write("""<resources>
             <string name="app_name">Herbdout Radio</string>
         </resources>""")
-        # Configures the colors file for the custom launcher background
+
+    # Configures the colors file for the custom launcher background
     - name: Create colors.xml
       shell: python
       run: |
@@ -148,7 +170,7 @@ jobs:
         with open("app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml", "w") as f:
             f.write(ic_launcher_content)
 
-    # Overwrites manifest settings to declare the updated app name, link the custom launcher icon, and add push notification permissions
+    # Overwrites manifest settings to declare push notification and background playback permissions
     - name: Force Overwrite AndroidManifest.xml
       shell: python
       run: |
@@ -243,8 +265,9 @@ jobs:
             <corners android:radius="20dp" />
             <stroke android:width="1dp" android:color="#335EFF00" />
         </shape>""")
-        # Overwrites the UI layout with the OLED design matching Image 2 (First Half)
-    - name: Force Overwrite activity_main.xml (Part 1 of 2)
+
+    # Overwrites the UI layout with the pure-black OLED design, Settings Drawer (Left), and Live Chat Drawer (Right)
+    - name: Force Overwrite activity_main.xml
       shell: python
       run: |
         import os
@@ -508,13 +531,7 @@ jobs:
 
                 </androidx.constraintlayout.widget.ConstraintLayout>
             </com.google.android.material.card.MaterialCardView>
-        """)
-        # Appends the second half of the UI layout with the Slide-out Panels & Emojis Canvas
-    - name: Force Overwrite activity_main.xml (Part 2 of 2)
-      shell: python
-      run: |
-        with open("app/src/main/res/layout/activity_main.xml", "a") as f:
-            f.write("""
+
             <!-- Slide-out Live Chat Panel (Right) -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/chatPanel"
@@ -823,7 +840,8 @@ jobs:
                 android:focusable="false" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>""")
-        # Creates the silent background worker that checks stream connectivity and launches push notifications
+
+    # Creates the silent background worker that checks stream connectivity and launches push notifications
     - name: Create StreamCheckWorker.kt
       shell: python
       run: |
@@ -957,8 +975,9 @@ jobs:
                 }
             }
         }""")
-        # Creates the first half of the Foreground AudioService
-    - name: Create AudioService.kt (Part 1 of 2)
+
+    # Creates the Foreground AudioService for multitasking and screen off playback
+    - name: Create AudioService.kt
       shell: python
       run: |
         import os
@@ -1085,13 +1104,7 @@ jobs:
                     }
                 }.start()
             }
-        """)
-        # Appends the second half of the Foreground AudioService to complete the file (Fixes compile issues)
-    - name: Create AudioService.kt (Part 2 of 2)
-      shell: python
-      run: |
-        with open("app/src/main/java/com/example/audiostreamer/AudioService.kt", "a") as f:
-            f.write("""
+
             private fun fetchActiveStreamUrl(): String {
                 var activeUrl = "http://uk18freenew.listen2myradio.com:5784/stream"
                 try {
@@ -1200,7 +1213,8 @@ jobs:
                 stopPlaying()
             }
         }""")
-        # Overwrites MainActivity.kt to bind to the Foreground AudioService and handle UI changes
+
+    # Overwrites MainActivity.kt to bind to the Foreground AudioService and handle UI changes
     # Backslashes are escaped (\\n) so Python writes it to the Kotlin file correctly as \n
     - name: Force Overwrite MainActivity.kt
       shell: python
@@ -1790,6 +1804,729 @@ jobs:
             }
         }""")
 
+PART 7: Foreground Audio Playback Service (Part 2 of 2)
+
+Paste this block directly underneath the end of Part 6.
+
+    # Appends the second half of the Foreground AudioService to complete the file (Fixes compile issues)
+    - name: Create AudioService.kt (Part 2 of 2)
+      shell: python
+      run: |
+        with open("app/src/main/java/com/example/audiostreamer/AudioService.kt", "a") as f:
+            f.write("""
+            private fun fetchActiveStreamUrl(): String {
+                var activeUrl = "http://uk18freenew.listen2myradio.com:5784/stream"
+                try {
+                    val url = URL("https://herbdout.radio12345.com/")
+                    val connection = url.openConnection() as HttpURLConnection
+                    connection.connectTimeout = 5000
+                    connection.readTimeout = 5000
+                    connection.requestMethod = "GET"
+                    
+                    if (connection.responseCode == 200) {
+                        val html = connection.inputStream.bufferedReader().use { it.readText() }
+                        val regex = "https?://[a-zA-Z0-9.-]+:[0-9]+/[a-zA-Z0-9_.-]+".toRegex()
+                        val match = regex.find(html)
+                        if (match != null) {
+                            activeUrl = match.value
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                return activeUrl
+            }
+
+            private fun handleError() {
+                timeoutHandler.removeCallbacks(timeoutRunnable)
+                isConnecting = false
+                isStreamPlaying = false
+                isError = true
+                notifyStateChanged()
+                
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+                stopSelf()
+            }
+
+            private fun stopPlaying() {
+                timeoutHandler.removeCallbacks(timeoutRunnable)
+                mediaPlayer?.let {
+                    if (it.isPlaying) {
+                        it.stop()
+                    }
+                    it.release()
+                }
+                mediaPlayer = null
+                isConnecting = false
+                isStreamPlaying = false
+                isError = false
+                notifyStateChanged()
+                
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+                stopSelf()
+            }
+
+            private fun notifyStateChanged() {
+                Handler(Looper.getMainLooper()).post {
+                    listener?.onStateChanged()
+                }
+            }
+
+            private fun createNotification(statusText: String): Notification {
+                createNotificationChannel()
+
+                val intent = Intent(this, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+                }
+                
+                val flag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                } else {
+                    PendingIntent.FLAG_UPDATE_CURRENT
+                }
+                
+                val pendingIntent = PendingIntent.getActivity(this, 0, intent, flag)
+
+                // Close button directly on notification drawer
+                val stopIntent = Intent(this, AudioService::class.java).apply { action = ACTION_STOP }
+                val stopPendingIntent = PendingIntent.getService(this, 1, stopIntent, flag)
+
+                return NotificationCompat.Builder(this, channelId)
+                    .setSmallIcon(R.drawable.ic_star_logo)
+                    .setContentTitle("Herbdout Radio")
+                    .setContentText(statusText)
+                    .setContentIntent(pendingIntent)
+                    .setPriority(NotificationCompat.PRIORITY_LOW)
+                    .setColor(android.graphics.Color.parseColor("#5EFF00"))
+                    .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPendingIntent)
+                    .setOngoing(true)
+                    .build()
+            }
+
+            private fun createNotificationChannel() {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val name = "Audio Playback"
+                    val importance = NotificationManager.IMPORTANCE_LOW
+                    val channel = NotificationChannel(channelId, name, importance).apply {
+                        description = "Shows live audio stream controls"
+                    }
+                    val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                    manager.createNotificationChannel(channel)
+                }
+            }
+
+            override fun onDestroy() {
+                super.onDestroy()
+                stopPlaying()
+            }
+        }""")
+
+PART 8: Native Android UI Controller (MainActivity.kt - Part 1 of 2)
+
+Paste this block directly underneath the end of Part 7.
+
+    # Overwrites MainActivity.kt with settings drawer, chat bindings, and dynamic status sync (First Half)
+    - name: Force Overwrite MainActivity.kt (Part 1 of 2)
+      shell: python
+      run: |
+        import os
+        os.makedirs("app/src/main/java/com/example/audiostreamer", exist_ok=True)
+        with open("app/src/main/java/com/example/audiostreamer/MainActivity.kt", "w") as f:
+            f.write("""package com.example.audiostreamer
+
+        import android.Manifest
+        import android.content.Intent
+        import android.content.pm.PackageManager
+        import android.os.Build
+        import android.os.Bundle
+        import android.view.View
+        import android.view.animation.AlphaAnimation
+        import android.view.animation.Animation
+        import android.view.animation.LinearInterpolator
+        import android.view.animation.RotateAnimation
+        import android.widget.Button
+        import android.widget.FrameLayout
+        import android.widget.TextView
+        import androidx.appcompat.app.AppCompatActivity
+        import androidx.core.app.ActivityCompat
+        import androidx.core.content.ContextCompat
+        import androidx.work.ExistingPeriodicWorkPolicy
+        import androidx.work.PeriodicWorkRequestBuilder
+        import androidx.work.WorkManager
+        import com.google.firebase.auth.FirebaseAuth
+        import io.socket.client.IO
+        import io.socket.client.Socket
+        import org.json.JSONObject
+        import java.util.concurrent.TimeUnit
+
+        class MainActivity : AppCompatActivity() {
+
+            private lateinit var btnPlay: Button
+            private lateinit var tvStatus: TextView
+            private lateinit var tvLiveStatus: TextView
+            private lateinit var liveDot: View
+            private lateinit var vinylRecord: View
+            private lateinit var emojiContainer: FrameLayout
+            private lateinit var chatMessagesContainer: android.widget.LinearLayout
+            private lateinit var chatScrollView: android.widget.ScrollView
+            private lateinit var etChatInput: android.widget.EditText
+            private lateinit var btnSendChat: android.widget.Button
+            private lateinit var chatPanel: View
+            private lateinit var recordCard: View
+            private lateinit var btnToggleChat: Button
+            private lateinit var btnCloseChat: Button
+            private lateinit var btnToggleSettings: Button
+            private lateinit var btnCloseSettings: Button
+            private lateinit var btnSaveSettings: Button
+            private lateinit var etUsernameInput: android.widget.EditText
+            private lateinit var settingsPanel: View
+
+            private var rotateAnim: RotateAnimation? = null
+            private var mSocket: Socket? = null
+            
+            // Explicitly connects to your central server cloud instance URL
+            private val socketUrl = "https://ais-pre-eov36f74tvwrwzzr5kg2pz-787301755010.europe-west2.run.app"
+
+            override fun onCreate(savedInstanceState: Bundle?) {
+                super.onCreate(savedInstanceState)
+                
+                window.statusBarColor = android.graphics.Color.parseColor("#080808")
+                window.navigationBarColor = android.graphics.Color.parseColor("#080808")
+
+                setContentView(R.layout.activity_main)
+
+                btnPlay = findViewById(R.id.btnPlay)
+                tvStatus = findViewById(R.id.tvStatus)
+                tvLiveStatus = findViewById(R.id.tvLiveStatus)
+                liveDot = findViewById(R.id.liveDot)
+                vinylRecord = findViewById(R.id.vinylRecord)
+                emojiContainer = findViewById(R.id.emojiContainer)
+                chatMessagesContainer = findViewById(R.id.chatMessagesContainer)
+                chatScrollView = findViewById(R.id.chatScrollView)
+                etChatInput = findViewById(R.id.etChatInput)
+                btnSendChat = findViewById(R.id.btnSendChat)
+                chatPanel = findViewById(R.id.chatPanel)
+                recordCard = findViewById(R.id.recordCard)
+                btnToggleChat = findViewById(R.id.btnToggleChat)
+                btnCloseChat = findViewById(R.id.btnCloseChat)
+                btnToggleSettings = findViewById(R.id.btnToggleSettings)
+                btnCloseSettings = findViewById(R.id.btnCloseSettings)
+                btnSaveSettings = findViewById(R.id.btnSaveSettings)
+                etUsernameInput = findViewById(R.id.etUsernameInput)
+                settingsPanel = findViewById(R.id.settingsPanel)
+
+                btnPlay.setOnClickListener {
+                    togglePlayback()
+                }
+
+                btnToggleChat.setOnClickListener {
+                    toggleChatView(true)
+                }
+
+                btnCloseChat.setOnClickListener {
+                    toggleChatView(false)
+                }
+
+                btnToggleSettings.setOnClickListener {
+                    toggleSettingsView(true)
+                }
+
+                btnCloseSettings.setOnClickListener {
+                    toggleSettingsView(false)
+                }
+
+                btnSaveSettings.setOnClickListener {
+                    saveUsernamePreference()
+                }
+
+                btnSendChat.setOnClickListener {
+                    sendChatMessage()
+                }
+
+                // Check and request push notifications permission
+                checkAndRequestPermissions()
+
+                // Register background silent check job
+                setupBackgroundChecks()
+
+                // Bind UI update listener directly to our Foreground Service state
+                AudioService.listener = object : AudioService.AudioServiceListener {
+                    override fun onStateChanged() {
+                        updateUIState()
+                    }
+                }
+
+                // Run an initial UI state sync check
+                updateUIState()
+
+                // Establish Socket.io connection
+                setupSocketConnection()
+
+                // Set up local emoji button click listeners
+                setupEmojiButtons()
+                
+                // Initialize text field with saved native name
+                val prefs = getSharedPreferences("HerbdoutPrefs", MODE_PRIVATE)
+                val savedName = prefs.getString("username", "Listener") ?: "Listener"
+                etUsernameInput.setText(savedName)
+            }
+
+            private fun checkAndRequestPermissions() {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) 
+                        != PackageManager.PERMISSION_GRANTED) {
+                        ActivityCompat.requestPermissions(
+                            this, 
+                            arrayOf(Manifest.permission.POST_NOTIFICATIONS), 
+                            101
+                        )
+                    }
+                }
+            }
+
+            private fun setupBackgroundChecks() {
+                val checkRequest = PeriodicWorkRequestBuilder<StreamCheckWorker>(
+                    15, TimeUnit.MINUTES
+                ).build()
+
+                WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+                    "HerbdoutStreamCheck",
+                    ExistingPeriodicWorkPolicy.KEEP,
+                    checkRequest
+                )
+            }
+
+            private fun setupSocketConnection() {
+                try {
+                    val opts = IO.Options().apply {
+                        forceNew = true
+                        reconnection = true
+                        // Force WebSockets transport to resolve Cloud Run routing/handshake issues
+                        transports = arrayOf("websocket") 
+                    }
+                    mSocket = IO.socket(socketUrl, opts)
+                    
+                    // Listen for emojis sent from other users or broadcaster
+                    mSocket?.on("new-emoji") { args ->
+                        if (args.isNotEmpty()) {
+                            val data = args[0] as? JSONObject
+                            if (data != null) {
+                                val emoji = data.optString("emoji", "❤️")
+                                val username = data.optString("sender", "Listener") // Aligned key with React Web Broadcaster
+                                val avatar = data.optString("avatar", "")
+                                
+                                // Safeguard against memory leak crashes when background updates arrive as the app is exiting
+                                if (!isFinishing && !isDestroyed) {
+                                    runOnUiThread {
+                                        showFloatingEmoji(emoji, username, avatar)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Subscribe to chat history
+                    mSocket?.on("chat-history") { args ->
+                        if (args.isNotEmpty()) {
+                            val history = args[0] as? org.json.JSONArray
+                            if (history != null) {
+                                runOnUiThread {
+                                    chatMessagesContainer.removeAllViews()
+                                    for (i in 0 until history.length()) {
+                                        val msg = history.optJSONObject(i)
+                                        if (msg != null) {
+                                            addChatMessageToUI(msg)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Subscribe to live chat messages
+                    mSocket?.on("chat-message") { args ->
+                        if (args.isNotEmpty()) {
+                            val msg = args[0] as? JSONObject
+                            if (msg != null) {
+                                runOnUiThread {
+                                    addChatMessageToUI(msg)
+                                }
+                            }
+                        }
+                    }
+
+                    // Handles the live metadata "status" event natively
+                    mSocket?.on("status") { args ->
+                        if (args.isNotEmpty()) {
+                            val data = args[0] as? JSONObject
+                            if (data != null) {
+                                val isBroadcasting = data.optBoolean("isBroadcasting", false)
+                                val nowPlaying = data.optJSONObject("nowPlaying")
+                                
+                                val title = nowPlaying?.optString("title", "Offline") ?: "Offline"
+                                val artist = nowPlaying?.optString("artist", "Herbdout Radio") ?: "Herbdout Radio"
+                                
+                                runOnUiThread {
+                                    if (!isFinishing && !isDestroyed) {
+                                        tvTrackTitle.text = title
+                                        tvArtist.text = artist
+                                        
+                                        if (isBroadcasting) {
+                                            tvLiveStatus.text = "LIVE"
+                                            tvLiveStatus.setTextColor(android.graphics.Color.parseColor("#5EFF00"))
+                                            liveDot.visibility = View.VISIBLE
+                                            val blink = AlphaAnimation(0.3f, 1.0f).apply {
+                                                duration = 800
+                                                repeatMode = Animation.REVERSE
+                                                repeatCount = Animation.INFINITE
+                                            }
+                                            liveDot.startAnimation(blink)
+                                        } else {
+                                            tvLiveStatus.text = "OFF AIR"
+                                            tvLiveStatus.setTextColor(android.graphics.Color.parseColor("#888888"))
+                                            liveDot.clearAnimation()
+                                            liveDot.visibility = View.GONE
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    mSocket?.connect()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        """)
+
+PART 9: UI Controller (MainActivity.kt - Part 2 of 2) & Gradle Compilation
+
+Paste this final block directly underneath the end of Part 8.
+
+    # Appends the second half of the UI layout controller and triggers compiling of .apk
+    - name: Force Overwrite MainActivity.kt (Part 2 of 2)
+      shell: python
+      run: |
+        with open("app/src/main/java/com/example/audiostreamer/MainActivity.kt", "a") as f:
+            f.write("""
+            private fun setupEmojiButtons() {
+                findViewById<Button>(R.id.btnEmojiHeart).setOnClickListener { sendEmoji("❤️") }
+                findViewById<Button>(R.id.btnEmojiFire).setOnClickListener { sendEmoji("🔥") }
+                findViewById<Button>(R.id.btnEmojiCrown).setOnClickListener { sendEmoji("👑") }
+                findViewById<Button>(R.id.btnEmojiHeadphones).setOnClickListener { sendEmoji("🎧") }
+                findViewById<Button>(R.id.btnEmojiStar).setOnClickListener { sendEmoji("🌟") }
+            }
+
+            private fun sendEmoji(emoji: String) {
+                val prefs = getSharedPreferences("HerbdoutPrefs", MODE_PRIVATE)
+                val username = prefs.getString("username", "Listener") ?: "Listener"
+                val avatar = ""
+
+                // Instantly play the float animation locally for immediate, lag-free feedback
+                showFloatingEmoji(emoji, username, avatar)
+                
+                // Emit package to backend server
+                if (mSocket != null && mSocket!!.connected()) {
+                    try {
+                        val payload = JSONObject().apply {
+                            put("emoji", emoji)
+                            put("sender", username) // Send under "sender"
+                            put("avatar", avatar)
+                        }
+                        mSocket?.emit("send-emoji", payload)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+
+            private fun showFloatingEmoji(emoji: String, username: String, avatar: String) {
+                runOnUiThread {
+                    // Create translucent OLED styled reaction badge containing the sender's username
+                    val badgeView = TextView(this).apply {
+                        text = "$username: $emoji"
+                        setTextColor(android.graphics.Color.WHITE)
+                        textSize = 14f
+                        setTypeface(null, android.graphics.Typeface.BOLD)
+                        setBackgroundResource(R.drawable.reaction_badge_bg)
+                        setPadding(24, 12, 24, 12)
+                        
+                        layoutParams = FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.WRAP_CONTENT,
+                            FrameLayout.LayoutParams.WRAP_CONTENT
+                        ).apply {
+                            gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
+                        }
+                    }
+
+                    emojiContainer.addView(badgeView)
+
+                    // Get screen width and height dynamically to animate perfectly on any screen size
+                    val displayMetrics = resources.displayMetrics
+                    val screenHeight = displayMetrics.heightPixels.toFloat()
+                    val screenWidth = displayMetrics.widthPixels.toFloat()
+
+                    // Randomize horizontal starting point across the middle 60% of the screen
+                    val randomX = ((Math.random() * (screenWidth * 0.6)) - (screenWidth * 0.3)).toFloat()
+                    badgeView.translationX = randomX
+
+                    // Thread-isolated property animation moves vertically up and fades away
+                    badgeView.animate()
+                        .translationY(-screenHeight) // Float all the way to the top of the screen
+                        .alpha(0f)
+                        .scaleX(1.1f)
+                        .scaleY(1.1f)
+                        .setDuration(2500) // 2.5 seconds floating time
+                        .setInterpolator(android.view.animation.AccelerateDecelerateInterpolator())
+                        .withEndAction {
+                            emojiContainer.removeView(badgeView) // Avoid memory leaks
+                        }
+                        .start()
+                }
+            }
+
+            private fun toggleChatView(show: Boolean) {
+                if (show) {
+                    recordCard.visibility = View.GONE
+                    chatPanel.visibility = View.VISIBLE
+                    btnToggleChat.visibility = View.GONE
+                    btnToggleSettings.visibility = View.GONE
+                    chatScrollView.post {
+                        chatScrollView.fullScroll(View.FOCUS_DOWN)
+                    }
+                } else {
+                    chatPanel.visibility = View.GONE
+                    recordCard.visibility = View.VISIBLE
+                    btnToggleChat.visibility = View.VISIBLE
+                    btnToggleSettings.visibility = View.VISIBLE
+                }
+            }
+
+            private fun toggleSettingsView(show: Boolean) {
+                if (show) {
+                    recordCard.visibility = View.GONE
+                    settingsPanel.visibility = View.VISIBLE
+                    btnToggleChat.visibility = View.GONE
+                    btnToggleSettings.visibility = View.GONE
+                } else {
+                    settingsPanel.visibility = View.GONE
+                    recordCard.visibility = View.VISIBLE
+                    btnToggleChat.visibility = View.VISIBLE
+                    btnToggleSettings.visibility = View.VISIBLE
+                }
+            }
+
+            private fun saveUsernamePreference() {
+                val newName = etUsernameInput.text.toString().trim()
+                if (newName.isNotEmpty()) {
+                    val prefs = getSharedPreferences("HerbdoutPrefs", MODE_PRIVATE)
+                    prefs.edit().putString("username", newName).apply()
+                    toggleSettingsView(false)
+                }
+            }
+
+            private fun sendChatMessage() {
+                val text = etChatInput.text.toString().trim()
+                if (text.isEmpty()) return
+
+                val prefs = getSharedPreferences("HerbdoutPrefs", MODE_PRIVATE)
+                val username = prefs.getString("username", "Listener") ?: "Listener"
+                val avatar = ""
+
+                if (mSocket != null && mSocket!!.connected()) {
+                    try {
+                        val payload = JSONObject().apply {
+                            put("sender", username)
+                            put("avatar", avatar)
+                            put("text", text)
+                        }
+                        mSocket?.emit("send-chat", payload)
+                        etChatInput.text.clear()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+
+            private fun addChatMessageToUI(msg: JSONObject) {
+                val sender = msg.optString("sender", "Listener")
+                val text = msg.optString("text", "")
+                if (text.isEmpty()) return
+
+                // Create custom styled vertical message bubble layout
+                val bubbleLayout = android.widget.LinearLayout(this).apply {
+                    orientation = android.widget.LinearLayout.VERTICAL
+                    setBackgroundResource(R.drawable.reaction_badge_bg)
+                    setPadding(24, 16, 24, 16)
+                    
+                    val params = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        setMargins(0, 0, 0, 16)
+                    }
+                    layoutParams = params
+                }
+
+                // Sender display username (Green)
+                val tvSender = TextView(this).apply {
+                    text = sender
+                    setTextColor(android.graphics.Color.parseColor("#5EFF00"))
+                    textSize = 12f
+                    setTypeface(null, android.graphics.Typeface.BOLD)
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        setMargins(0, 0, 0, 4)
+                    }
+                }
+
+                // Message text content (White)
+                val tvText = TextView(this).apply {
+                    text = text
+                    setTextColor(android.graphics.Color.WHITE)
+                    textSize = 14f
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                }
+
+                bubbleLayout.addView(tvSender)
+                bubbleLayout.addView(tvText)
+
+                chatMessagesContainer.addView(bubbleLayout)
+
+                // Limit displayed history count to preserve device memory performance
+                if (chatMessagesContainer.childCount > 100) {
+                    chatMessagesContainer.removeViewAt(0)
+                }
+
+                // Auto Scroll down
+                chatScrollView.post {
+                    chatScrollView.fullScroll(View.FOCUS_DOWN)
+                }
+            }
+
+            private fun togglePlayback() {
+                if (!AudioService.isStreamPlaying && !AudioService.isConnecting) {
+                    startPlaybackService()
+                } else {
+                    stopPlaybackService()
+                }
+            }
+
+            private fun startPlaybackService() {
+                val intent = Intent(this, AudioService::class.java).apply {
+                    action = AudioService.ACTION_PLAY
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(intent)
+                } else {
+                    startService(intent)
+                }
+            }
+
+            private fun stopPlaybackService() {
+                val intent = Intent(this, AudioService::class.java).apply {
+                    action = AudioService.ACTION_STOP
+                }
+                startService(intent)
+            }
+
+            private fun updateUIState() {
+                if (AudioService.isConnecting) {
+                    tvStatus.text = "CONNECTING..."
+                    tvStatus.setTextColor(android.graphics.Color.parseColor("#888888"))
+                    tvLiveStatus.text = "CONNECTING"
+                    tvLiveStatus.setTextColor(android.graphics.Color.parseColor("#888888"))
+                    btnPlay.isEnabled = false
+                    btnPlay.text = "Listen"
+                    liveDot.clearAnimation()
+                    liveDot.visibility = View.GONE
+                    stopVinylRotation()
+                } else if (AudioService.isStreamPlaying) {
+                    btnPlay.text = "Pause"
+                    btnPlay.isEnabled = true
+                    
+                    tvStatus.text = "NOW PLAYING LIVE"
+                    tvStatus.setTextColor(android.graphics.Color.parseColor("#5EFF00"))
+                    
+                    tvLiveStatus.text = "LIVE"
+                    tvLiveStatus.setTextColor(android.graphics.Color.parseColor("#5EFF00"))
+                    
+                    // Starts blinking live dot
+                    liveDot.visibility = View.VISIBLE
+                    val blink = AlphaAnimation(0.3f, 1.0f).apply {
+                        duration = 800
+                        repeatMode = Animation.REVERSE
+                        repeatCount = Animation.INFINITE
+                    }
+                    liveDot.startAnimation(blink)
+
+                    startVinylRotation()
+                } else if (AudioService.isError) {
+                    btnPlay.text = "Listen"
+                    btnPlay.isEnabled = true
+                    tvStatus.text = "Radio is not broadcasting right now.\\nPlease try again later."
+                    tvStatus.setTextColor(android.graphics.Color.parseColor("#EF4444"))
+                    
+                    tvLiveStatus.text = "OFF AIR"
+                    tvLiveStatus.setTextColor(android.graphics.Color.parseColor("#EF4444"))
+                    
+                    liveDot.clearAnimation()
+                    liveDot.visibility = View.GONE
+                    stopVinylRotation()
+                } else {
+                    btnPlay.text = "Listen"
+                    btnPlay.isEnabled = true
+                    tvStatus.text = "TAP PLAY TO TUNE IN"
+                    tvStatus.setTextColor(android.graphics.Color.parseColor("#888888"))
+                    tvLiveStatus.text = "OFF AIR"
+                    tvLiveStatus.setTextColor(android.graphics.Color.parseColor("#888888"))
+                    
+                    liveDot.clearAnimation()
+                    liveDot.visibility = View.GONE
+                    stopVinylRotation()
+                }
+            }
+
+            private fun startVinylRotation() {
+                if (rotateAnim == null) {
+                    rotateAnim = RotateAnimation(
+                        0f, 360f,
+                        Animation.RELATIVE_TO_SELF, 0.5f,
+                        Animation.RELATIVE_TO_SELF, 0.5f
+                    ).apply {
+                        duration = 5000 // 5 seconds per full rotation
+                        repeatCount = Animation.INFINITE
+                        interpolator = LinearInterpolator()
+                    }
+                }
+                vinylRecord.startAnimation(rotateAnim)
+            }
+
+            private fun stopVinylRotation() {
+                vinylRecord.clearAnimation()
+            }
+
+            override fun onResume() {
+                super.onResume()
+                updateUIState()
+            }
+
+            override fun onDestroy() {
+                super.onDestroy()
+                AudioService.listener = null
+                mSocket?.disconnect()
+                mSocket?.off("new-emoji")
+            }
+        }""")
+
     # Runs clean compilation before assemble to force the compiler to write physical files on every build run
     - name: Build with Gradle
       run: gradle clean assembleDebug --stacktrace
@@ -1807,5 +2544,3 @@ jobs:
         name: App-Debug-APK
         path: app/build/outputs/apk/debug/app-debug.apk
         if-no-files-found: error
-
-
