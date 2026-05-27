@@ -186,7 +186,7 @@ jobs:
           z-index: 50;
         }""")
 
-    # Overwrites App.tsx with the first half of the React/Socket codebase
+    # Overwrites App.tsx with the first half of the React/Socket/Scraper codebase
     - name: Force Overwrite src/App.tsx (Part 1 of 2)
       shell: python
       run: |
@@ -207,12 +207,13 @@ jobs:
           Music,
           HelpCircle,
           User,
-          Activity
+          Activity,
+          Settings,
+          X
         } from "lucide-react";
 
         // --- CONFIGURATION ---
         const BACKEND_URL = "https://ais-dev-eov36f74tvwrwzzr5kg2pz-787301755010.europe-west2.run.app";
-        const STREAM_URL = `${BACKEND_URL}/stream`;
 
         // Interfaces
         interface NowPlaying {
@@ -247,6 +248,9 @@ jobs:
           const [isMuted, setIsMuted] = useState(false);
           const [prevVolume, setPrevVolume] = useState(0.8);
 
+          // Dynamic Stream URL State
+          const [streamUrl, setStreamUrl] = useState("http://uk18freenew.listen2myradio.com:5784/stream");
+
           // Real-Time States
           const [status, setStatus] = useState<StatusData>({
             listeners: 0,
@@ -255,18 +259,46 @@ jobs:
           });
           const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
           const [chatInput, setChatInput] = useState("");
-          const [username, setUsername] = useState("Listener");
-          const [isEditingUsername, setIsEditingUsername] = useState(false);
-          const [tempUsername, setTempUsername] = useState("Listener");
+          
+          // Load username from localStorage, default to 'Listener'
+          const [username, setUsername] = useState<string>(() => {
+            if (typeof window !== "undefined") {
+              return localStorage.getItem("herbdout_username") || "Listener";
+            }
+            return "Listener";
+          });
+          
+          const [tempUsername, setTempUsername] = useState(username);
 
-          // Visual/Animation States
+          // Visual/Animation/Drawer States
           const [floatingEmojis, setFloatingEmojis] = useState<FloatingEmoji[]>([]);
           const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(true);
+          const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
           // Refs
           const audioRef = useRef<HTMLAudioElement | null>(null);
           const socketRef = useRef<Socket | null>(null);
           const chatEndRef = useRef<HTMLDivElement | null>(null);
+
+          // Resolve the stream URL dynamically from herbdout.radio12345.com on launch
+          useEffect(() => {
+            const resolveStreamUrl = async () => {
+              try {
+                const response = await fetch("https://herbdout.radio12345.com/");
+                if (response.ok) {
+                  const html = await response.text();
+                  const match = html.match(/https?:\/\/[a-zA-Z0-9.-]+:[0-9]+\/[a-zA-Z0-9_.-]+/);
+                  if (match) {
+                    console.log("Resolved dynamic stream URL:", match[0]);
+                    setStreamUrl(match[0]);
+                  }
+                }
+              } catch (e) {
+                console.error("CORS or network error. Using fallback stream link.", e);
+              }
+            };
+            resolveStreamUrl();
+          }, []);
 
           // 1. Initialize Socket.IO Client & Listeners
           useEffect(() => {
@@ -322,7 +354,7 @@ jobs:
             };
           }, []);
         """)
-# Appends the second half of the React/Socket codebase to App.tsx
+        # Appends the second half of the React/Socket codebase to App.tsx
     - name: Force Overwrite src/App.tsx (Part 2 of 2)
       shell: python
       run: |
@@ -344,7 +376,7 @@ jobs:
             } else {
               setIsBuffering(true);
               // Reconnect fresh to the stream URL to avoid playing stale buffers
-              audioRef.current.src = STREAM_URL;
+              audioRef.current.src = streamUrl;
               audioRef.current.load();
               audioRef.current.play()
                 .then(() => {
@@ -410,7 +442,8 @@ jobs:
           const saveUsername = () => {
             if (tempUsername.trim()) {
               setUsername(tempUsername);
-              setIsEditingUsername(false);
+              localStorage.setItem("herbdout_username", tempUsername);
+              setIsSettingsOpen(false);
             }
           };
 
@@ -453,6 +486,14 @@ jobs:
                       <Users className="w-4 h-4 text-[#5EFF00]" />
                       <span className="text-xs font-bold">{status.listeners}</span>
                     </div>
+
+                    {/* Left settings drawer toggle */}
+                    <button
+                      onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                      className="p-2 bg-[#0b0c0b] rounded-full border border-neutral-800 hover:border-[#5EFF00] transition"
+                    >
+                      <Settings className="w-5 h-5" />
+                    </button>
 
                     {/* Toggle Chat button for Mobile */}
                     <button
@@ -560,7 +601,45 @@ jobs:
                 </div>
               </div>
 
-              {/* Slide-out Live Chat Sidebar Panel */}
+              {/* Slide-out Settings Sidebar Panel (Left) */}
+              <div
+                className={`fixed top-0 left-0 h-full w-full md:w-80 bg-[#0b0c0b] border-r border-neutral-900 flex flex-col transition-transform duration-300 z-50 ${isSettingsOpen ? "translate-x-0" : "-translate-x-full"}`}
+              >
+                <div className="p-4 border-b border-neutral-900 flex justify-between items-center">
+                  <div className="flex items-center gap-2 text-neutral-300">
+                    <Settings className="w-5 h-5 text-[#5EFF00]" />
+                    <span className="font-bold tracking-wide">Settings Console</span>
+                  </div>
+                  <button onClick={() => setIsSettingsOpen(false)} className="text-neutral-500 hover:text-white">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="p-6 flex flex-col gap-6">
+                  <div>
+                    <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wider mb-2">
+                      User Profile Nickname
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        maxLength={15}
+                        className="flex-1 bg-[#121212] border border-neutral-800 rounded-full px-4 py-2 text-sm outline-none text-white focus:border-[#5EFF00] transition"
+                        value={tempUsername}
+                        onChange={(e) => setTempUsername(e.target.value)}
+                      />
+                      <button
+                        onClick={saveUsername}
+                        className="bg-[#5EFF00] text-black text-xs font-bold rounded-full px-4 py-2 hover:scale-105 transition"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Slide-out Live Chat Sidebar Panel (Right) */}
               <div
                 className={`fixed md:relative top-0 right-0 h-full w-full md:w-96 bg-[#0b0c0b] border-l border-neutral-900 flex flex-col transition-transform duration-300 z-50 ${isChatSidebarOpen ? "translate-x-0" : "translate-x-full md:translate-x-0 md:hidden"}`}
               >
@@ -578,44 +657,6 @@ jobs:
                   >
                     ✕
                   </button>
-                </div>
-
-                {/* Set username settings row */}
-                <div className="p-4 bg-[#080808]/50 border-b border-neutral-900 flex items-center justify-between">
-                  {isEditingUsername ? (
-                    <div className="flex gap-2 w-full">
-                      <input
-                        type="text"
-                        maxLength={15}
-                        className="flex-1 bg-[#121212] border border-neutral-800 rounded-full px-3 py-1 text-sm outline-none text-white focus:border-[#5EFF00]"
-                        value={tempUsername}
-                        onChange={(e) => setTempUsername(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && saveUsername()}
-                      />
-                      <button
-                        onClick={saveUsername}
-                        className="bg-[#5EFF00] text-black text-xs font-bold rounded-full px-3 py-1 hover:scale-105 transition"
-                      >
-                        Save
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex justify-between items-center w-full">
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-neutral-500" />
-                        <span className="text-sm font-semibold text-neutral-300">{username}</span>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setTempUsername(username);
-                          setIsEditingUsername(true);
-                        }}
-                        className="text-xs text-[#5EFF00] font-bold hover:underline"
-                      >
-                        Change Name
-                      </button>
-                    </div>
-                  )}
                 </div>
 
                 {/* Scrolling message logs */}
@@ -705,6 +746,4 @@ jobs:
         name: App-Debug-APK
         path: android/app/build/outputs/apk/debug/app-debug.apk
         if-no-files-found: error
-
-
-
+        
