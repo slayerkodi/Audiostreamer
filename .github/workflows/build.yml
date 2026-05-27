@@ -1,4 +1,4 @@
-name: Build Android APK from Zip
+name: Build React SPA Radio Client
 
 on:
   push:
@@ -8,1387 +8,673 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+    - name: Checkout Code
+      uses: actions/checkout@v4
 
-      - name: Unzip Project Files
-        run: |
-          if [ -f "audiostreamer.zip" ]; then
-            unzip -o audiostreamer.zip -d .
-          fi
+    # Removes old Android files to keep your repository clean
+    - name: Clean Old Android Project Structure
+      run: |
+        rm -rf app gradle .gradle gradlew gradlew.bat build.gradle settings.gradle
+        echo "Cleaned old Android files."
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-
-      - name: Force Overwrite app/build.gradle
-        run: |
-          mkdir -p app
-          cat << 'EOF' > app/build.gradle
-          plugins {
-              id 'com.android.application'
-              id 'org.jetbrains.kotlin.android'
+    # Overwrites package.json to manage modern web dependencies
+    - name: Force Overwrite package.json
+      shell: python
+      run: |
+        import os
+        with open("package.json", "w") as f:
+            f.write("""{
+          "name": "herbdout-radio-listener",
+          "private": true,
+          "version": "1.0.0",
+          "type": "module",
+          "scripts": {
+            "dev": "vite",
+            "build": "tsc && vite build",
+            "preview": "vite preview"
+          },
+          "dependencies": {
+            "react": "^18.2.0",
+            "react-dom": "^18.2.0",
+            "socket.io-client": "^4.7.4",
+            "lucide-react": "^0.344.0"
+          },
+          "devDependencies": {
+            "@types/react": "^18.2.56",
+            "@types/react-dom": "^18.2.19",
+            "@vitejs/plugin-react": "^4.2.1",
+            "autoprefixer": "^10.4.17",
+            "postcss": "^8.4.35",
+            "tailwindcss": "^3.4.1",
+            "typescript": "^5.2.2",
+            "vite": "^5.1.4"
           }
+        }""")
 
-          android {
-              namespace 'com.example.audiostreamer'
-              compileSdk 34
+    # Configures Vite bundler parameters
+    - name: Force Overwrite vite.config.ts
+      shell: python
+      run: |
+        with open("vite.config.ts", "w") as f:
+            f.write("""import { defineConfig } from 'vite'
+        import react from '@vitejs/plugin-react'
 
-              defaultConfig {
-                  applicationId "com.example.audiostreamer"
-                  minSdk 26
-                  targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
-                  testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-              }
-
-              buildTypes {
-                  release {
-                      minifyEnabled false
-                      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-                  }
-              }
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-              kotlinOptions {
-                  jvmTarget = '17'
-              }
+        export default defineConfig({
+          plugins: [react()],
+          server: {
+            port: 3000
           }
+        })""")
 
-          dependencies {
-              implementation 'androidx.core:core-ktx:1.12.0'
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-              implementation 'com.google.android.material:material:1.11.0'
-              implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-              implementation 'androidx.work:work-runtime-ktx:2.9.1'
+    # Configures PostCSS properties
+    - name: Force Overwrite postcss.config.js
+      shell: python
+      run: |
+        with open("postcss.config.js", "w") as f:
+            f.write("""export default {
+          plugins: {
+            tailwindcss: {},
+            autoprefixer: {},
+          },
+        }""")
+
+    # Configures Tailwind CSS content scan boundaries
+    - name: Force Overwrite tailwind.config.js
+      shell: python
+      run: |
+        with open("tailwind.config.js", "w") as f:
+            f.write("""/** @type {import('tailwindcss').Config} */
+        export default {
+          content: [
+            "./index.html",
+            "./src/**/*.{js,ts,jsx,tsx}",
+          ],
+          theme: {
+            extend: {
+              colors: {
+                neonGreen: "#5EFF00",
+                oledBlack: "#050505",
+                panelDark: "#0B0C0B"
+              }
+            },
+          },
+          plugins: [],
+        }""")
+        # Configures index.html mount point
+    - name: Force Overwrite index.html
+      shell: python
+      run: |
+        with open("index.html", "w") as f:
+            f.write("""<!doctype html>
+        <html lang="en">
+          <head>
+            <meta charset="UTF-8" />
+            <link rel="icon" type="image/svg+xml" href="https://ais-dev-eov36f74tvwrwzzr5kg2pz-787301755010.europe-west2.run.app/favicon.ico" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>Herbdout Radio - Live Listener Station</title>
+          </head>
+          <body class="bg-[#050505] text-white">
+            <div id="root"></div>
+            <script type="module" src="/src/main.tsx"></script>
+          </body>
+        </html>""")
+
+    # Setup the React source directory files
+    - name: Create React Source Directory Files
+      shell: python
+      run: |
+        import os
+        os.makedirs("src", exist_ok=True)
+        
+        # main.tsx mount loader file
+        with open("src/main.tsx", "w") as f:
+            f.write("""import React from 'react'
+        import ReactDOM from 'react-dom/client'
+        import App from './App.tsx'
+        import './index.css'
+
+        ReactDOM.createRoot(document.getElementById('root')!).render(
+          <React.StrictMode>
+            <App />
+          </React.StrictMode>,
+        )""")
+
+        # index.css with core Tailwind loads and the GPU-accelerated floating emoji keyframe animation
+        with open("src/index.css", "w") as f:
+            f.write("""@tailwind base;
+        @tailwind components;
+        @tailwind utilities;
+
+        /* Custom Floating Emoji Animations */
+        @keyframes floatUpReact {
+          0% {
+            transform: translateY(105vh) scale(0.6);
+            opacity: 0;
+          }
+          15% {
+            opacity: 1;
+            transform: translateY(70vh) scale(1.3);
+          }
+          100% {
+            transform: translateY(-5vh) scale(1.0);
+            opacity: 0;
+          }
+        }
+
+        .floating-emoji {
+          position: absolute;
+          bottom: -60px;
+          font-size: 3.5rem;
+          animation: floatUpReact 3.2s cubic-bezier(0.25, 1, 0.50, 1) forwards;
+          pointer-events: none;
+          z-index: 50;
+        }""")
+
+    # Overwrites App.tsx with the first half of the React/Socket codebase
+    - name: Force Overwrite src/App.tsx (Part 1 of 2)
+      shell: python
+      run: |
+        import os
+        os.makedirs("src", exist_ok=True)
+        with open("src/App.tsx", "w") as f:
+            f.write("""import React, { useState, useEffect, useRef } from "react";
+        import { io, Socket } from "socket.io-client";
+        import {
+          Play,
+          Pause,
+          Volume2,
+          VolumeX,
+          Users,
+          Radio,
+          MessageSquare,
+          Send,
+          Music,
+          HelpCircle,
+          User,
+          Activity
+        } from "lucide-react";
+
+        // --- CONFIGURATION ---
+        const BACKEND_URL = "https://ais-dev-eov36f74tvwrwzzr5kg2pz-787301755010.europe-west2.run.app";
+        const STREAM_URL = `${BACKEND_URL}/stream`;
+
+        // Interfaces
+        interface NowPlaying {
+          title: string;
+          artist: string;
+          album: string;
+        }
+
+        interface StatusData {
+          listeners: number;
+          nowPlaying: NowPlaying;
+          isBroadcasting: boolean;
+        }
+
+        interface ChatMessage {
+          id: string;
+          user: string;
+          text: string;
+          timestamp: number;
+        }
+
+        interface FloatingEmoji {
+          id: string;
+          emoji: string;
+          x: number; // 0.0 to 1.0 (relative screen width)
+        }
+
+        export default function App() {
+          const [isPlaying, setIsPlaying] = useState(false);
+          const [isBuffering, setIsBuffering] = useState(false);
+          const [volume, setVolume] = useState(0.8);
+          const [isMuted, setIsMuted] = useState(false);
+          const [prevVolume, setPrevVolume] = useState(0.8);
+
+          // Real-Time States
+          const [status, setStatus] = useState<StatusData>({
+            listeners: 0,
+            nowPlaying: { title: "Offline", artist: "Herbdout Radio", album: "None" },
+            isBroadcasting: false
+          });
+          const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+          const [chatInput, setChatInput] = useState("");
+          const [username, setUsername] = useState("Listener");
+          const [isEditingUsername, setIsEditingUsername] = useState(false);
+          const [tempUsername, setTempUsername] = useState("Listener");
+
+          // Visual/Animation States
+          const [floatingEmojis, setFloatingEmojis] = useState<FloatingEmoji[]>([]);
+          const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(true);
+
+          // Refs
+          const audioRef = useRef<HTMLAudioElement | null>(null);
+          const socketRef = useRef<Socket | null>(null);
+          const chatEndRef = useRef<HTMLDivElement | null>(null);
+
+          // 1. Initialize Socket.IO Client & Listeners
+          useEffect(() => {
+            const socket: Socket = io(BACKEND_URL, {
+              transports: ["websocket"]
+            });
+            socketRef.current = socket;
+
+            // Listen for broadcast metadata status
+            socket.on("status", (data: StatusData) => {
+              setStatus(data);
+            });
+
+            // Listen for 50 most recent messages on first load
+            socket.on("chat-history", (historyArray: any[]) => {
+              const mapped = historyArray.map((msg, idx) => ({
+                id: msg.id || `history-${idx}`,
+                user: msg.user || "Anonymous",
+                text: msg.text || "",
+                timestamp: msg.timestamp || Date.now()
+              }));
+              setChatMessages(mapped);
+            });
+
+            // Listen for incoming real-time chat messages
+            socket.on("chat-message", (msg: any) => {
+              const newMsg: ChatMessage = {
+                id: msg.id || Math.random().toString(),
+                user: msg.user || "Anonymous",
+                text: msg.text || "",
+                timestamp: msg.timestamp || Date.now()
+              };
+              setChatMessages((prev) => [...prev, newMsg].slice(-100)); // Keep last 100 messages locally
+            });
+
+            // Listen for real-time emoji emissions
+            socket.on("new-emoji", (payload: { emoji: string; x: number }) => {
+              const newEmoji: FloatingEmoji = {
+                id: Math.random().toString(),
+                emoji: payload.emoji,
+                x: payload.x || Math.random()
+              };
+              setFloatingEmojis((prev) => [...prev, newEmoji]);
+
+              // Automatically clean up nodes after 3 seconds to preserve browser memory
+              setTimeout(() => {
+                setFloatingEmojis((prev) => prev.filter((e) => e.id !== newEmoji.id));
+              }, 3000);
+            });
+
+            return () => {
+              socket.disconnect();
+            };
+          }, []);
+        """)
+# Appends the second half of the React/Socket codebase to App.tsx and compiles the final build
+    - name: Force Overwrite src/App.tsx (Part 2 of 2)
+      shell: python
+      run: |
+        with open("src/App.tsx", "a") as f:
+            f.write("""
+          // Auto-scroll chat panel to bottom when new messages arrive
+          useEffect(() => {
+            chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+          }, [chatMessages]);
+
+          // Handle Play/Pause with buffer clearing on restart to keep the live boundary fresh
+          const togglePlay = () => {
+            if (!audioRef.current) return;
+
+            if (isPlaying) {
+              audioRef.current.pause();
+              setIsPlaying(false);
+              setIsBuffering(false);
+            } else {
+              setIsBuffering(true);
+              // Reconnect fresh to the stream URL to avoid playing stale buffers
+              audioRef.current.src = STREAM_URL;
+              audioRef.current.load();
+              audioRef.current.play()
+                .then(() => {
+                  setIsPlaying(true);
+                  setIsBuffering(false);
+                })
+                .catch((e) => {
+                  console.error("Playback stalled or blocked", e);
+                  setIsPlaying(false);
+                  setIsBuffering(false);
+                });
+            }
+          };
+
+          const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+            const val = parseFloat(e.target.value);
+            setVolume(val);
+            if (audioRef.current) {
+              audioRef.current.volume = val;
+            }
+            if (val > 0) {
+              setIsMuted(false);
+            }
+          };
+
+          const toggleMute = () => {
+            if (isMuted) {
+              setVolume(prevVolume);
+              setIsMuted(false);
+              if (audioRef.current) {
+                audioRef.current.volume = prevVolume;
+              }
+            } else {
+              setPrevVolume(volume);
+              setVolume(0);
+              setIsMuted(true);
+              if (audioRef.current) {
+                audioRef.current.volume = 0;
+              }
+            }
+          };
+
+          const handleSendChat = (e: React.FormEvent) => {
+            e.preventDefault();
+            if (!socketRef.current || !chatInput.trim()) return;
+
+            socketRef.current.emit("send-chat", {
+              user: username,
+              text: chatInput
+            });
+            setChatInput("");
+          };
+
+          const handleSendEmoji = (emojiChar: string) => {
+            if (!socketRef.current) return;
+
+            socketRef.current.emit("send-emoji", {
+              emoji: emojiChar,
+              x: Math.random() // Randomized horizontal floating point
+            });
+          };
+
+          const saveUsername = () => {
+            if (tempUsername.trim()) {
+              setUsername(tempUsername);
+              setIsEditingUsername(false);
+            }
+          };
+
+          return (
+            <div className="min-h-screen bg-[#050505] text-white flex flex-col md:flex-row relative overflow-hidden">
               
-              implementation 'com.google.firebase:firebase-auth-ktx:22.3.1'
-              
-              implementation ('io.socket:socket.io-client:2.1.0') {
-                  exclude group: 'org.json', module: 'json'
-              }
-          }
-          EOF
+              {/* Hidden Native Audio Element */}
+              <audio
+                ref={audioRef}
+                onWaiting={() => setIsBuffering(true)}
+                onPlaying={() => setIsBuffering(false)}
+                onError={() => {
+                  setIsPlaying(false);
+                  setIsBuffering(false);
+                }}
+              />
+
+              {/* Main Player Screen Area */}
+              <div className="flex-1 flex flex-col justify-between p-6 relative z-10">
+                {/* Top Header */}
+                <header className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <Radio className="w-8 h-8 text-[#5EFF00]" />
+                    <h1 className="text-xl font-extrabold tracking-wider italic">
+                      HERBDOUT<span className="text-[#5EFF00]">RADIO</span>
+                    </h1>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    {/* Status Badge */}
+                    <div className="flex items-center gap-2 bg-[#0b0c0b] px-3 py-1.5 rounded-full border border-neutral-800">
+                      <span className={`w-2.5 h-2.5 rounded-full ${status.isBroadcasting ? "bg-[#5EFF00] animate-pulse" : "bg-neutral-600"}`} />
+                      <span className="text-xs font-bold uppercase tracking-wider">
+                        {status.isBroadcasting ? "LIVE" : "OFF AIR"}
+                      </span>
+                    </div>
+
+                    {/* Active listeners */}
+                    <div className="flex items-center gap-2 bg-[#0b0c0b] px-3 py-1.5 rounded-full border border-neutral-800 text-neutral-400">
+                      <Users className="w-4 h-4 text-[#5EFF00]" />
+                      <span className="text-xs font-bold">{status.listeners}</span>
+                    </div>
+
+                    {/* Toggle Chat button for Mobile */}
+                    <button
+                      onClick={() => setIsChatSidebarOpen(!isChatSidebarOpen)}
+                      className="md:hidden p-2 bg-[#0b0c0b] rounded-full border border-neutral-800 hover:border-[#5EFF00] transition"
+                    >
+                      <MessageSquare className="w-5 h-5" />
+                    </button>
+                  </div>
+                </header>
+
+                {/* Concentric Rotating Vinyl Card */}
+                <div className="flex-1 flex flex-col justify-center items-center py-8 relative">
+                  <div className="relative w-72 h-72 md:w-80 md:h-80 rounded-full flex items-center justify-center bg-[#0d0d0d] border border-neutral-900 shadow-2xl">
+                    
+                    {/* Outer Grooved Ring */}
+                    <div className={`absolute inset-4 rounded-full border border-[#5EFF00]/20 flex items-center justify-center ${isPlaying && !isBuffering ? "animate-spin" : ""}`} style={{ animationDuration: "12s" }}>
+                      
+                      {/* Mid Ring */}
+                      <div className="absolute inset-8 rounded-full border border-neutral-800 flex items-center justify-center">
+                        {/* Inner Ring */}
+                        <div className="absolute inset-8 rounded-full border border-neutral-700 flex items-center justify-center">
+                          {/* Central Label */}
+                          <div className="absolute inset-10 rounded-full bg-[#121212] border-2 border-[#5EFF00] flex items-center justify-center">
+                            <Radio className="w-10 h-10 text-[#5EFF00]" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Metadata and track status details */}
+                  <div className="text-center mt-8 max-w-md px-4">
+                    <h2 className="text-2xl font-bold tracking-tight text-white line-clamp-1">
+                      {status.nowPlaying.title}
+                    </h2>
+                    <p className="text-[#5EFF00] text-sm font-semibold tracking-wide uppercase mt-2">
+                      {status.nowPlaying.artist}
+                    </p>
+                    <p className="text-neutral-500 text-xs mt-1 italic">
+                      {status.nowPlaying.album !== "None" ? `Album: ${status.nowPlaying.album}` : ""}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Player Controls Bar */}
+                <div className="flex flex-col items-center gap-6 max-w-lg mx-auto w-full">
+                  
+                  {/* Emoji quick reaction bar */}
+                  <div className="flex justify-center gap-3 bg-[#0b0c0b] p-2 rounded-full border border-neutral-900 w-full max-w-sm">
+                    {["❤️", "🔥", "👍", "🎵", "👑"].map((emoji) => (
+                      <button
+                        key={emoji}
+                        onClick={() => handleSendEmoji(emoji)}
+                        className="text-2xl p-2 hover:scale-125 hover:rotate-12 transition-transform duration-100"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Control elements */}
+                  <div className="flex items-center justify-between bg-[#0b0c0b] px-6 py-4 rounded-3xl border border-neutral-900 w-full">
+                    
+                    {/* Play Button */}
+                    <button
+                      onClick={togglePlay}
+                      className="w-14 h-14 rounded-full bg-[#5EFF00] text-black flex items-center justify-center hover:scale-105 active:scale-95 transition shadow-lg shadow-[#5EFF00]/20"
+                    >
+                      {isBuffering ? (
+                        <div className="w-6 h-6 border-3 border-black border-t-transparent rounded-full animate-spin" />
+                      ) : isPlaying ? (
+                        <Pause className="w-6 h-6 fill-black" />
+                      ) : (
+                        <Play className="w-6 h-6 fill-black translate-x-0.5" />
+                      )}
+                    </button>
+
+                    <div className="text-center">
+                      <span className="text-xs text-neutral-500 font-bold tracking-wider uppercase">
+                        {isBuffering ? "Buffering..." : isPlaying ? "Streaming Live" : "Paused"}
+                      </span>
+                    </div>
+
+                    {/* Mute and volume slider controls */}
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={toggleMute}
+                        className="p-2 text-neutral-400 hover:text-white transition"
+                      >
+                        {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                      </button>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={volume}
+                        onChange={handleVolumeChange}
+                        className="w-20 md:w-24 h-1 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-[#5EFF00]"
+                      />
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+
+              {/* Slide-out Live Chat Sidebar Panel */}
+              <div
+                className={`fixed md:relative top-0 right-0 h-full w-full md:w-96 bg-[#0b0c0b] border-l border-neutral-900 flex flex-col transition-transform duration-300 z-50 ${isChatSidebarOpen ? "translate-x-0" : "translate-x-full md:translate-x-0 md:hidden"}`}
+              >
+                {/* Chat Panel Header */}
+                <div className="p-4 border-b border-neutral-900 flex justify-between items-center">
+                  <div className="flex items-center gap-2 text-neutral-300">
+                    <MessageSquare className="w-5 h-5 text-[#5EFF00]" />
+                    <span className="font-bold tracking-wide">Live Chat Room</span>
+                  </div>
+                  
+                  {/* Close button for Mobile drawers */}
+                  <button
+                    onClick={() => setIsChatSidebarOpen(false)}
+                    className="md:hidden text-neutral-500 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Set username settings row */}
+                <div className="p-4 bg-[#080808]/50 border-b border-neutral-900 flex items-center justify-between">
+                  {isEditingUsername ? (
+                    <div className="flex gap-2 w-full">
+                      <input
+                        type="text"
+                        maxLength={15}
+                        className="flex-1 bg-[#121212] border border-neutral-800 rounded-full px-3 py-1 text-sm outline-none text-white focus:border-[#5EFF00]"
+                        value={tempUsername}
+                        onChange={(e) => setTempUsername(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && saveUsername()}
+                      />
+                      <button
+                        onClick={saveUsername}
+                        className="bg-[#5EFF00] text-black text-xs font-bold rounded-full px-3 py-1 hover:scale-105 transition"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between items-center w-full">
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4 text-neutral-500" />
+                        <span className="text-sm font-semibold text-neutral-300">{username}</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setTempUsername(username);
+                          setIsEditingUsername(true);
+                        }}
+                        className="text-xs text-[#5EFF00] font-bold hover:underline"
+                      >
+                        Change Name
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Scrolling message logs */}
+                <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+                  {chatMessages.map((msg) => (
+                    <div key={msg.id} className="bg-[#121212]/50 border border-neutral-900/50 rounded-2xl p-3">
+                      <div className="flex items-baseline gap-2 mb-1">
+                        <span className="text-xs font-extrabold text-[#5EFF00]">{msg.user}</span>
+                        <span className="text-[10px] text-neutral-600">
+                          {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="text-sm text-neutral-300 break-words">{msg.text}</p>
+                    </div>
+                  ))}
+                  <div ref={chatEndRef} />
+                </div>
+
+                {/* Input action footer */}
+                <form onSubmit={handleSendChat} className="p-4 border-t border-neutral-900 flex gap-2">
+                  <input
+                    type="text"
+                    maxLength={150}
+                    placeholder="Say something live..."
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    className="flex-1 bg-[#121212] border border-neutral-800 rounded-full px-4 py-2.5 text-sm outline-none text-white focus:border-[#5EFF00] transition"
+                  />
+                  <button
+                    type="submit"
+                    className="w-10 h-10 rounded-full bg-[#5EFF00] text-black flex items-center justify-center hover:scale-105 transition active:scale-95 shrink-0"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </form>
+              </div>
+
+              {/* Floating Emoji Canvas */}
+              <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden z-40">
+                {floatingEmojis.map((item) => (
+                  <span
+                    key={item.id}
+                    className="floating-emoji"
+                    style={{
+                      left: `${item.x * 100}%`
+                    }}
+                  >
+                    {item.emoji}
+                  </span>
+                ))}
+              </div>
+
+            </div>
+          );
+        }
+        """)
+
+    # Standard NPM build compilation step to verify build output integrity
+    - name: NPM Install and Compilation Build
+      run: |
+        npm install
+        npm run build
+
+    - name: Upload Static Web Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: Herbdout-Web-SPA
+        path: dist/
+        if-no-files-found: error
 
-      - name: Force Overwrite strings.xml
-        run: |
-          mkdir -p app/src/main/res/values
-          cat << 'EOF' > app/src/main/res/values/strings.xml
-          <resources>
-              <string name="app_name">Herbdout Radio</string>
-          </resources>
-          EOF
-
-      - name: Create colors.xml
-        run: |
-          cat << 'EOF' > app/src/main/res/values/colors.xml
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <color name="black">#FF000000</color>
-              <color name="white">#FFFFFFFF</color>
-          </resources>
-          EOF
-
-      - name: Create ic_star_logo_launcher drawable
-        run: |
-          mkdir -p app/src/main/res/drawable
-          cat << 'EOF' > app/src/main/res/drawable/ic_star_logo_launcher.xml
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="512dp"
-              android:height="512dp"
-              android:viewportWidth="24"
-              android:viewportHeight="24">
-              <path
-                  android:fillColor="#5EFF00"
-                  android:pathData="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z" />
-          </vector>
-          EOF
-
-      - name: Create reaction_badge_bg drawable
-        run: |
-          cat << 'EOF' > app/src/main/res/drawable/reaction_badge_bg.xml
-          <?xml version="1.0" encoding="utf-8"?>
-          <shape xmlns:android="http://schemas.android.com/apk/res/android"
-              android:shape="rectangle">
-              <solid android:color="#26000000" />
-              <stroke
-                  android:width="1dp"
-                  android:color="#335EFF00" />
-              <corners android:radius="14dp" />
-          </shape>
-          EOF
-
-      - name: Create chat_input_bg drawable
-        run: |
-          cat << 'EOF' > app/src/main/res/drawable/chat_input_bg.xml
-          <?xml version="1.0" encoding="utf-8"?>
-          <shape xmlns:android="http://schemas.android.com/apk/res/android"
-              android:shape="rectangle">
-              <solid android:color="#141414" />
-              <stroke
-                  android:width="1dp"
-                  android:color="#222222" />
-              <corners android:radius="12dp" />
-          </shape>
-          EOF
-
-      - name: Force Overwrite AndroidManifest.xml
-        run: |
-          mkdir -p app/src/main
-          cat << 'EOF' > app/src/main/AndroidManifest.xml
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-              <uses-permission android:name="android.permission.INTERNET" />
-              <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-              <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-              <uses-permission android:name="android.permission.WAKE_LOCK" />
-
-              <application
-                  android:allowBackup="true"
-                  android:icon="@drawable/ic_star_logo_launcher"
-                  android:label="@string/app_name"
-                  android:roundIcon="@drawable/ic_star_logo_launcher"
-                  android:supportsRtl="true"
-                  android:theme="@style/Theme.AppCompat.NoActionBar"
-                  android:usesCleartextTraffic="true">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-
-                  <service 
-                      android:name=".AudioService" 
-                      android:foregroundServiceType="mediaPlayback"
-                      android:exported="false" />
-              </application>
-          </manifest>
-          EOF
-
-      - name: Configure AndroidX Settings
-        run: |
-          cat << 'EOF' > gradle.properties
-          android.useAndroidX=true
-          android.enableJetifier=true
-          kotlin.code.style=official
-          EOF
-
-      - name: Create ic_star_logo drawable
-        run: |
-          cat << 'EOF' > app/src/main/res/drawable/ic_star_logo.xml
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="200dp"
-              android:height="200dp"
-              android:viewportWidth="24"
-              android:viewportHeight="24">
-              <path
-                  android:fillColor="#5EFF00"
-                  android:pathData="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z" />
-          </vector>
-          EOF
-
-      - name: Create settings.gradle
-        run: |
-          cat << 'EOF' > settings.gradle
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          rootProject.name = "audiostreamer"
-          include ':app'
-          EOF
-
-      - name: Force Overwrite activity_main.xml
-        run: |
-          mkdir -p app/src/main/res/layout
-          cat << 'EOF' > app/src/main/res/layout/activity_main.xml
-          <androidx.constraintlayout.widget.ConstraintLayout 
-              xmlns:android="http://schemas.android.com/apk/res/android"
-              xmlns:app="http://schemas.android.com/apk/res-auto"
-              xmlns:tools="http://schemas.android.com/tools"
-              android:layout_width="match_parent"
-              android:layout_height="match_parent"
-              android:background="#080808"
-              tools:context=".MainActivity">
-
-              <!-- Top Branding Bar -->
-              <LinearLayout
-                  android:id="@+id/topBar"
-                  android:layout_width="0dp"
-                  android:layout_height="wrap_content"
-                  android:orientation="horizontal"
-                  android:gravity="center_vertical"
-                  android:paddingLeft="24dp"
-                  android:paddingRight="24dp"
-                  android:paddingTop="24dp"
-                  app:layout_constraintTop_toTopOf="parent"
-                  app:layout_constraintStart_toStartOf="parent"
-                  app:layout_constraintEnd_toEndOf="parent">
-
-                  <ImageView
-                      android:layout_width="28dp"
-                      android:layout_height="28dp"
-                      android:src="@drawable/ic_star_logo" />
-
-                  <TextView
-                      android:layout_width="wrap_content"
-                      android:layout_height="wrap_content"
-                      android:text="HERBDOUT"
-                      android:textColor="#FFFFFF"
-                      android:textSize="14sp"
-                      android:textStyle="bold"
-                      android:letterSpacing="0.2"
-                      android:layout_marginLeft="10dp" />
-
-                  <TextView
-                      android:layout_width="wrap_content"
-                      android:layout_height="wrap_content"
-                      android:text="BROADCAST"
-                      android:textColor="#5EFF00"
-                      android:textSize="14sp"
-                      android:letterSpacing="0.2"
-                      android:layout_marginLeft="6dp" />
-              </LinearLayout>
-
-              <!-- Outlined chat control button in top right of main canvas -->
-              <com.google.android.material.button.MaterialButton
-                  android:id="@+id/btnToggleChat"
-                  style="@style/Widget.Material3.Button.OutlinedButton"
-                  android:layout_width="wrap_content"
-                  android:layout_height="wrap_content"
-                  android:text="Chat"
-                  android:textColor="#5EFF00"
-                  app:strokeColor="#5EFF00"
-                  app:strokeWidth="1dp"
-                  android:layout_marginEnd="24dp"
-                  android:layout_marginTop="24dp"
-                  app:layout_constraintTop_toTopOf="parent"
-                  app:layout_constraintEnd_toEndOf="parent" />
-
-              <!-- Centered Player Panel -->
-              <com.google.android.material.card.MaterialCardView
-                  android:id="@+id/recordCard"
-                  android:layout_width="0dp"
-                  android:layout_height="0dp"
-                  android:layout_marginLeft="24dp"
-                  android:layout_marginRight="24dp"
-                  android:layout_marginTop="16dp"
-                  android:layout_marginBottom="24dp"
-                  app:cardBackgroundColor="#0B0C0B"
-                  app:strokeColor="#1A5EFF00"
-                  app:strokeWidth="1dp"
-                  app:cardCornerRadius="24dp"
-                  app:layout_constraintTop_toBottomOf="@id/topBar"
-                  app:layout_constraintBottom_toTopOf="@id/playerCard"
-                  app:layout_constraintStart_toStartOf="parent"
-                  app:layout_constraintEnd_toEndOf="parent">
-
-                  <androidx.constraintlayout.widget.ConstraintLayout
-                      android:layout_width="match_parent"
-                      android:layout_height="match_parent"
-                      android:padding="24dp">
-
-                      <!-- Title: NOW PLAYING -->
-                      <TextView
-                          android:id="@+id/tvNowPlayingLabel"
-                          android:layout_width="wrap_content"
-                          android:layout_height="wrap_content"
-                          android:text="●  NOW PLAYING"
-                          android:textColor="#5EFF00"
-                          android:textSize="12sp"
-                          android:textStyle="bold"
-                          android:letterSpacing="0.1"
-                          app:layout_constraintTop_toTopOf="parent"
-                          app:layout_constraintStart_toStartOf="parent"
-                          app:layout_constraintEnd_toEndOf="parent" />
-
-                      <!-- Concentric Vinyl Record Container -->
-                      <androidx.constraintlayout.widget.ConstraintLayout
-                          android:id="@+id/vinylRecord"
-                          android:layout_width="220dp"
-                          android:layout_height="220dp"
-                          app:layout_constraintTop_toBottomOf="@id/tvNowPlayingLabel"
-                          app:layout_constraintBottom_toTopOf="@id/tvTrackTitle"
-                          app:layout_constraintStart_toStartOf="parent"
-                          app:layout_constraintEnd_toEndOf="parent"
-                          app:layout_constraintVertical_bias="0.4">
-
-                          <!-- Outer ring -->
-                          <com.google.android.material.card.MaterialCardView
-                              android:layout_width="match_parent"
-                              android:layout_height="match_parent"
-                              app:cardCornerRadius="110dp"
-                              app:cardBackgroundColor="#111211"
-                              app:strokeColor="#222222"
-                              app:strokeWidth="1.5dp">
-
-                              <androidx.constraintlayout.widget.ConstraintLayout
-                                  android:layout_width="match_parent"
-                                  android:layout_height="match_parent">
-
-                                  <!-- Grooves (Inner ring) -->
-                                  <com.google.android.material.card.MaterialCardView
-                                      android:layout_width="160dp"
-                                      android:layout_height="160dp"
-                                      app:cardCornerRadius="80dp"
-                                      app:cardBackgroundColor="#181918"
-                                      app:strokeColor="#282928"
-                                      app:strokeWidth="1dp"
-                                      app:layout_constraintTop_toTopOf="parent"
-                                      app:layout_constraintBottom_toBottomOf="parent"
-                                      app:layout_constraintStart_toStartOf="parent"
-                                      app:layout_constraintEnd_toEndOf="parent">
-
-                                      <!-- Center green badge as the record logo label -->
-                                      <com.google.android.material.card.MaterialCardView
-                                          android:layout_width="70dp"
-                                          android:layout_height="70dp"
-                                          app:cardCornerRadius="35dp"
-                                          app:cardBackgroundColor="#5EFF00"
-                                          app:layout_constraintTop_toTopOf="parent"
-                                          app:layout_constraintBottom_toBottomOf="parent"
-                                          app:layout_constraintStart_toStartOf="parent"
-                                          app:layout_constraintEnd_toEndOf="parent"
-                                          android:layout_gravity="center">
-
-                                          <ImageView
-                                              android:layout_width="28dp"
-                                              android:layout_height="28dp"
-                                              android:layout_gravity="center"
-                                              android:src="@drawable/ic_star_logo"
-                                              android:tint="#080808" />
-                                      </com.google.android.material.card.MaterialCardView>
-                                  </com.google.android.material.card.MaterialCardView>
-                              </androidx.constraintlayout.widget.ConstraintLayout>
-                          </com.google.android.material.card.MaterialCardView>
-                      </androidx.constraintlayout.widget.ConstraintLayout>
-
-                      <!-- Track metadata -->
-                      <TextView
-                          android:id="@+id/tvTrackTitle"
-                          android:layout_width="0dp"
-                          android:layout_height="wrap_content"
-                          android:text="LIVE STREAM BROADCAST"
-                          android:textColor="#FFFFFF"
-                          android:textSize="18sp"
-                          android:textStyle="bold"
-                          android:gravity="center"
-                          android:ellipsize="end"
-                          android:maxLines="1"
-                          app:layout_constraintBottom_toTopOf="@id/tvArtist"
-                          app:layout_constraintStart_toStartOf="parent"
-                          app:layout_constraintEnd_toEndOf="parent"
-                          android:layout_marginBottom="6dp" />
-
-                      <!-- Track Artist -->
-                      <TextView
-                          android:id="@+id/tvArtist"
-                          android:layout_width="wrap_content"
-                          android:layout_height="wrap_content"
-                          android:text="HERBDOUT RADIO"
-                          android:textColor="#5EFF00"
-                          android:textSize="12sp"
-                          android:textStyle="bold"
-                          android:letterSpacing="0.05"
-                          app:layout_constraintBottom_toBottomOf="parent"
-                          app:layout_constraintStart_toStartOf="parent"
-                          app:layout_constraintEnd_toEndOf="parent" />
-                  </androidx.constraintlayout.widget.ConstraintLayout>
-              </com.google.android.material.card.MaterialCardView>
-
-              <!-- Slide-out Live Chat Panel -->
-              <com.google.android.material.card.MaterialCardView
-                  android:id="@+id/chatPanel"
-                  android:layout_width="0dp"
-                  android:layout_height="0dp"
-                  android:layout_marginLeft="24dp"
-                  android:layout_marginRight="24dp"
-                  android:layout_marginTop="16dp"
-                  android:layout_marginBottom="24dp"
-                  android:visibility="gone"
-                  app:cardBackgroundColor="#0B0C0B"
-                  app:strokeColor="#335EFF00"
-                  app:strokeWidth="1dp"
-                  app:cardCornerRadius="24dp"
-                  app:layout_constraintTop_toBottomOf="@id/topBar"
-                  app:layout_constraintBottom_toTopOf="@id/playerCard"
-                  app:layout_constraintStart_toStartOf="parent"
-                  app:layout_constraintEnd_toEndOf="parent">
-
-                  <androidx.constraintlayout.widget.ConstraintLayout
-                      android:layout_width="match_parent"
-                      android:layout_height="match_parent"
-                      android:padding="16dp">
-
-                      <!-- Chat Header -->
-                      <RelativeLayout
-                          android:id="@+id/chatHeader"
-                          android:layout_width="match_parent"
-                          android:layout_height="wrap_content"
-                          app:layout_constraintTop_toTopOf="parent">
-
-                          <TextView
-                              android:layout_width="wrap_content"
-                              android:layout_height="wrap_content"
-                              android:text="LIVE CHAT ROOM"
-                              android:textColor="#FFFFFF"
-                              android:textSize="14sp"
-                              android:textStyle="bold"
-                              android:letterSpacing="0.1"
-                              android:layout_alignParentStart="true"
-                              android:layout_centerVertical="true" />
-
-                          <Button
-                              android:id="@+id/btnCloseChat"
-                              style="@style/Widget.Material3.Button.TextButton"
-                              android:layout_width="44dp"
-                              android:layout_height="44dp"
-                              android:text="✕"
-                              android:textColor="#888888"
-                              android:textSize="18sp"
-                              android:layout_alignParentEnd="true" />
-                      </RelativeLayout>
-
-                      <!-- Scrollable message container list -->
-                      <ScrollView
-                          android:id="@+id/chatScrollView"
-                          android:layout_width="match_parent"
-                          android:layout_height="0dp"
-                          android:layout_marginTop="8dp"
-                          android:layout_marginBottom="8dp"
-                          app:layout_constraintTop_toBottomOf="@id/chatHeader"
-                          app:layout_constraintBottom_toTopOf="@id/chatInputLayout">
-
-                          <LinearLayout
-                              android:id="@+id/chatContainer"
-                              android:layout_width="match_parent"
-                              android:layout_height="wrap_content"
-                              android:orientation="vertical" />
-                      </ScrollView>
-
-                      <!-- Text input field and dispatch arrow container -->
-                      <LinearLayout
-                          android:id="@+id/chatInputLayout"
-                          android:layout_width="match_parent"
-                          android:layout_height="wrap_content"
-                          android:orientation="horizontal"
-                          android:gravity="center_vertical"
-                          app:layout_constraintBottom_toBottomOf="parent">
-
-                          <EditText
-                              android:id="@+id/etChatMessage"
-                              android:layout_width="0dp"
-                              android:layout_height="44dp"
-                              android:layout_weight="1"
-                              android:hint="Type something..."
-                              android:textColorHint="#555555"
-                              android:textColor="#FFFFFF"
-                              android:textSize="14sp"
-                              android:background="@drawable/chat_input_bg"
-                              android:paddingLeft="16dp"
-                              android:paddingRight="16dp"
-                              android:singleLine="true" />
-
-                          <com.google.android.material.button.MaterialButton
-                              android:id="@+id/btnSendChatMessage"
-                              style="@style/Widget.Material3.Button"
-                              android:layout_width="44dp"
-                              android:layout_height="44dp"
-                              android:layout_marginLeft="8dp"
-                              android:backgroundTint="#5EFF00"
-                              app:icon="@android:drawable/ic_menu_send"
-                              app:iconTint="#080808"
-                              app:iconGravity="textStart"
-                              android:padding="0dp"
-                              app:cornerRadius="12dp" />
-                      </LinearLayout>
-                  </androidx.constraintlayout.widget.ConstraintLayout>
-              </com.google.android.material.card.MaterialCardView>
-
-              <!-- Bottom Control & Emoji Panel -->
-              <com.google.android.material.card.MaterialCardView
-                  android:id="@+id/playerCard"
-                  android:layout_width="0dp"
-                  android:layout_height="wrap_content"
-                  android:layout_marginLeft="24dp"
-                  android:layout_marginRight="24dp"
-                  android:layout_marginBottom="24dp"
-                  app:cardBackgroundColor="#0B0C0B"
-                  app:strokeColor="#1A5EFF00"
-                  app:strokeWidth="1dp"
-                  app:cardCornerRadius="24dp"
-                  app:layout_constraintBottom_toBottomOf="parent"
-                  app:layout_constraintStart_toStartOf="parent"
-                  app:layout_constraintEnd_toEndOf="parent">
-
-                  <androidx.constraintlayout.widget.ConstraintLayout
-                      android:layout_width="match_parent"
-                      android:layout_height="wrap_content"
-                      android:padding="20dp">
-
-                      <!-- Broadcast Online Indicator/Status -->
-                      <TextView
-                          android:id="@+id/tvLiveStatus"
-                          android:layout_width="wrap_content"
-                          android:layout_height="wrap_content"
-                          android:text="  OFFLINE"
-                          android:textColor="#888888"
-                          android:textSize="12sp"
-                          android:textStyle="bold"
-                          android:letterSpacing="0.1"
-                          app:layout_constraintTop_toTopOf="parent"
-                          app:layout_constraintStart_toStartOf="parent" />
-
-                      <!-- Realtime Status Subtext / Listen state descriptor -->
-                      <TextView
-                          android:id="@+id/tvStatus"
-                          android:layout_width="wrap_content"
-                          android:layout_height="wrap_content"
-                          android:text="Press Listen to connect."
-                          android:textColor="#888888"
-                          android:textSize="13sp"
-                          android:layout_marginTop="4dp"
-                          app:layout_constraintTop_toBottomOf="@id/tvLiveStatus"
-                          app:layout_constraintStart_toStartOf="parent" />
-
-                      <!-- Control Elements (Play / Pause toggle button) -->
-                      <com.google.android.material.button.MaterialButton
-                          android:id="@+id/btnPlay"
-                          android:layout_width="120dp"
-                          android:layout_height="48dp"
-                          android:text="Listen"
-                          android:textColor="#080808"
-                          android:textSize="14sp"
-                          android:textStyle="bold"
-                          android:backgroundTint="#5EFF00"
-                          app:cornerRadius="16dp"
-                          app:layout_constraintTop_toTopOf="parent"
-                          app:layout_constraintBottom_toBottomOf="parent"
-                          app:layout_constraintEnd_toEndOf="parent" />
-
-                      <View
-                          android:id="@+id/divider"
-                          android:layout_width="match_parent"
-                          android:layout_height="1dp"
-                          android:background="#1A5EFF00"
-                          android:layout_marginTop="20dp"
-                          app:layout_constraintTop_toBottomOf="@id/tvStatus" />
-
-                      <!-- Fast Send Emoji Drawer Row -->
-                      <LinearLayout
-                          android:id="@+id/emojiDrawer"
-                          android:layout_width="match_parent"
-                          android:layout_height="wrap_content"
-                          android:orientation="horizontal"
-                          android:gravity="center"
-                          android:layout_marginTop="16dp"
-                          app:layout_constraintTop_toBottomOf="@id/divider">
-
-                          <Button
-                              android:id="@+id/emoji_fire"
-                              style="@style/Widget.Material3.Button.TextButton"
-                              android:layout_width="48dp"
-                              android:layout_height="48dp"
-                              android:text="🔥"
-                              android:textSize="22sp" />
-
-                          <Button
-                              android:id="@+id/emoji_heart"
-                              style="@style/Widget.Material3.Button.TextButton"
-                              android:layout_width="48dp"
-                              android:layout_height="48dp"
-                              android:text="❤️"
-                              android:textSize="22sp" />
-
-                          <Button
-                              android:id="@+id/emoji_hundred"
-                              style="@style/Widget.Material3.Button.TextButton"
-                              android:layout_width="48dp"
-                              android:layout_height="48dp"
-                              android:text="💯"
-                              android:textSize="22sp" />
-
-                          <Button
-                              android:id="@+id/emoji_cool"
-                              style="@style/Widget.Material3.Button.TextButton"
-                              android:layout_width="48dp"
-                              android:layout_height="48dp"
-                              android:text="😎"
-                              android:textSize="22sp" />
-
-                          <Button
-                              android:id="@+id/emoji_star"
-                              style="@style/Widget.Material3.Button.TextButton"
-                              android:layout_width="48dp"
-                              android:layout_height="48dp"
-                              android:text="⭐"
-                              android:textSize="22sp" />
-                      </LinearLayout>
-                  </androidx.constraintlayout.widget.ConstraintLayout>
-              </com.google.android.material.card.MaterialCardView>
-
-              <!-- Full-screen transparent overlay container for floating emojis -->
-              <FrameLayout
-                  android:id="@+id/emojiContainer"
-                  android:layout_width="0dp"
-                  android:layout_height="0dp"
-                  android:elevation="12dp"
-                  android:clickable="false"
-                  android:focusable="false"
-                  app:layout_constraintTop_toTopOf="parent"
-                  app:layout_constraintBottom_toBottomOf="parent"
-                  app:layout_constraintStart_toStartOf="parent"
-                  app:layout_constraintEnd_toEndOf="parent" />
-          </androidx.constraintlayout.widget.ConstraintLayout>
-          EOF
-
-      - name: Create StreamCheckWorker.kt
-        run: |
-          mkdir -p app/src/main/java/com/example/audiostreamer
-          cat << 'EOF' > app/src/main/java/com/example/audiostreamer/StreamCheckWorker.kt
-          package com.example.audiostreamer
-
-          import android.content.Context
-          import androidx.core.app.NotificationCompat
-          import androidx.core.app.NotificationManagerCompat
-          import androidx.work.CoroutineWorker
-          import androidx.work.WorkerParameters
-          import java.net.HttpURLConnection
-          import java.net.URL
-
-          class StreamCheckWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
-              override suspend fun doWork(): Result {
-                  val isOnline = checkRadioBroadcastingState()
-                  if (isOnline) {
-                      triggerSuccessNotification()
-                  }
-                  return Result.success()
-              }
-
-              private fun checkRadioBroadcastingState(): Boolean {
-                  return try {
-                      val connection = URL("https://herbdout.radio12345.com/").openConnection() as HttpURLConnection
-                      connection.connectTimeout = 4000
-                      connection.readTimeout = 4000
-                      connection.requestMethod = "HEAD"
-                      val code = connection.responseCode
-                      code in 200..399
-                  } catch (e: Exception) {
-                      false
-                  }
-              }
-
-              private fun triggerSuccessNotification() {
-                  val builder = NotificationCompat.Builder(applicationContext, "RADIO_STATUS_CHANNEL")
-                      .setSmallIcon(R.drawable.ic_star_logo_launcher)
-                      .setContentTitle("Herbdout Radio")
-                      .setContentText("Herbdout is currently live broadcasting right now!")
-                      .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                      .setAutoCancel(true)
-
-                  val notification = builder.build()
-                  try {
-                      NotificationManagerCompat.from(applicationContext).notify(1001, notification)
-                  } catch (e: SecurityException) {
-                      // Ignored
-                  }
-              }
-          }
-          EOF
-
-      - name: Create AudioService.kt
-        run: |
-          cat << 'EOF' > app/src/main/java/com/example/audiostreamer/AudioService.kt
-          package com.example.audiostreamer
-
-          import android.app.Notification
-          import android.app.NotificationChannel
-          import android.app.NotificationManager
-          import android.app.Service
-          import android.content.Context
-          import android.content.Intent
-          import android.content.pm.ServiceInfo
-          import android.media.AudioAttributes
-          import android.media.MediaPlayer
-          import android.os.Binder
-          import android.os.Build
-          import android.os.Handler
-          import android.os.IBinder
-          import android.os.Looper
-          import android.os.PowerManager
-          import androidx.core.app.NotificationCompat
-          import java.net.HttpURLConnection
-          import java.net.URL
-          import kotlin.concurrent.thread
-
-          class AudioService : Service() {
-
-              private val binder = LocalBinder()
-              private var mediaPlayer: MediaPlayer? = null
-              private val notificationId = 1
-              private val channelId = "radio_service_channel"
-
-              var isStreamPlaying = false
-                  private set
-
-              var isConnecting = false
-                  private set
-
-              var isError = false
-                  private set
-
-              private val timeoutHandler = Handler(Looper.getMainLooper())
-              private val timeoutRunnable = Runnable {
-                  if (isConnecting) {
-                      handleError()
-                  }
-              }
-
-              inner class LocalBinder : Binder() {
-                  fun getService(): AudioService = this@AudioService
-              }
-
-              override fun onCreate() {
-                  super.onCreate()
-                  createNotificationChannel()
-              }
-
-              override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                      startForeground(
-                          notificationId, 
-                          createNotification("Connecting to Herbdout Radio..."), 
-                          ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
-                      )
-                  } else {
-                      startForeground(notificationId, createNotification("Connecting to Herbdout Radio..."))
-                  }
-                  return START_STICKY
-              }
-
-              override fun onBind(intent: Intent?): IBinder {
-                  return binder
-              }
-
-              fun play() {
-                  if (isStreamPlaying || isConnecting) return
-                  isConnecting = true
-                  isError = false
-                  notifyStateChanged()
-
-                  timeoutHandler.postDelayed(timeoutRunnable, 10000)
-
-                  thread {
-                      try {
-                          val activeStreamUrl = fetchActiveStreamUrl()
-                          if (activeStreamUrl != null) {
-                              initializeMediaPlayer(activeStreamUrl)
-                          } else {
-                              Handler(Looper.getMainLooper()).post { handleError() }
-                          }
-                      } catch (e: Exception) {
-                          Handler(Looper.getMainLooper()).post { handleError() }
-                      }
-                  }
-              }
-
-              private fun fetchActiveStreamUrl(): String? {
-                  return try {
-                      val connection = URL("https://herbdout.radio12345.com/").openConnection() as HttpURLConnection
-                      connection.connectTimeout = 4000
-                      connection.readTimeout = 4000
-                      connection.requestMethod = "HEAD"
-                      val code = connection.responseCode
-                      if (code in 200..399) "https://herbdout.radio12345.com/" else null
-                  } catch (e: Exception) {
-                      null
-                  }
-              }
-
-              private fun initializeMediaPlayer(streamUrl: String) {
-                  mediaPlayer?.release()
-                  mediaPlayer = MediaPlayer().apply {
-                      setWakeMode(applicationContext, PowerManager.PARTIAL_WAKE_LOCK)
-                      setAudioAttributes(
-                          AudioAttributes.Builder()
-                              .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                              .setUsage(AudioAttributes.USAGE_MEDIA)
-                              .build()
-                      )
-                      setDataSource(streamUrl)
-                      setOnPreparedListener { mp ->
-                          timeoutHandler.removeCallbacks(timeoutRunnable)
-                          isConnecting = false
-                          isStreamPlaying = true
-                          isError = false
-                          mp.start()
-                          updateNotification("Now Streaming Herbdout Radio")
-                          notifyStateChanged()
-                      }
-                      setOnErrorListener { _, _, _ ->
-                          handleError()
-                          true
-                      }
-                      prepareAsync()
-                  }
-              }
-
-              fun pause() {
-                  if (mediaPlayer?.isPlaying == true) {
-                      mediaPlayer?.stop()
-                  }
-                  mediaPlayer?.release()
-                  mediaPlayer = null
-                  isStreamPlaying = false
-                  isConnecting = false
-                  notifyStateChanged()
-                  stopForeground(true)
-                  stopSelf()
-              }
-
-              private fun handleError() {
-                  timeoutHandler.removeCallbacks(timeoutRunnable)
-                  isConnecting = false
-                  isStreamPlaying = false
-                  isError = true
-                  notifyStateChanged()
-                  stopForeground(true)
-                  stopSelf()
-              }
-
-              private fun notifyStateChanged() {
-                  val intent = Intent("com.example.audiostreamer.STATE_CHANGED")
-                  sendBroadcast(intent)
-              }
-
-              private fun createNotification(content: String): Notification {
-                  return NotificationCompat.Builder(this, channelId)
-                      .setContentTitle("Herbdout Radio")
-                      .setContentText(content)
-                      .setSmallIcon(R.drawable.ic_star_logo_launcher)
-                      .setOngoing(true)
-                      .build()
-              }
-
-              private fun updateNotification(content: String) {
-                  val notification = createNotification(content)
-                  val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                  notificationManager.notify(notificationId, notification)
-              }
-
-              private fun createNotificationChannel() {
-                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                      val serviceChannel = NotificationChannel(
-                          channelId,
-                          "Radio Playback Channel",
-                          NotificationManager.IMPORTANCE_LOW
-                      )
-                      val manager = getSystemService(NotificationManager::class.java)
-                      manager?.createNotificationChannel(serviceChannel)
-                  }
-              }
-
-              override fun onDestroy() {
-                  mediaPlayer?.release()
-                  mediaPlayer = null
-                  super.onDestroy()
-              }
-          }
-          EOF
-
-      - name: Force Overwrite MainActivity.kt
-        run: |
-          cat << 'EOF' > app/src/main/java/com/example/audiostreamer/MainActivity.kt
-          package com.example.audiostreamer
-
-          import android.animation.ObjectAnimator
-          import android.content.BroadcastReceiver
-          import android.content.ComponentName
-          import android.content.Context
-          import android.content.Intent
-          import android.content.IntentFilter
-          import android.content.ServiceConnection
-          import android.content.res.ColorStateList
-          import android.graphics.Color
-          import android.os.Bundle
-          import android.os.IBinder
-          import android.view.View
-          import android.view.animation.LinearInterpolator
-          import android.widget.Button
-          import android.widget.EditText
-          import android.widget.ImageView
-          import android.widget.LinearLayout
-          import android.widget.ScrollView
-          import android.widget.TextView
-          import androidx.appcompat.app.AppCompatActivity
-          import androidx.constraintlayout.widget.ConstraintLayout
-          import com.google.android.material.button.MaterialButton
-          import com.google.android.material.card.MaterialCardView
-          import com.google.firebase.auth.FirebaseAuth
-          import io.socket.client.IO
-          import io.socket.client.Socket
-          import org.json.JSONObject
-          import java.util.Random
-
-          class MainActivity : AppCompatActivity() {
-
-              private var isChatVisible = false
-              private var mSocket: Socket? = null
-
-              private lateinit var topBar: LinearLayout
-              private lateinit var btnToggleChat: MaterialButton
-              private lateinit var recordCard: MaterialCardView
-              private lateinit var chatPanel: MaterialCardView
-              private lateinit var playerCard: MaterialCardView
-              private lateinit var emojiContainer: android.widget.FrameLayout
-
-              private lateinit var btnCloseChat: Button
-              private lateinit var etChatMessage: EditText
-              private lateinit var btnSendChatMessage: MaterialButton
-              private lateinit var chatScrollView: ScrollView
-              private lateinit var chatContainer: LinearLayout
-
-              private lateinit var btnPlay: MaterialButton
-              private lateinit var tvLiveStatus: TextView
-              private lateinit var tvStatus: TextView
-              private lateinit var recordAnimator: ObjectAnimator
-
-              private var audioService: AudioService? = null
-              private var isBound = false
-
-              private val connection = object : ServiceConnection {
-                  override fun onServiceConnected(className: ComponentName, service: IBinder) {
-                      val binder = service as AudioService.LocalBinder
-                      audioService = binder.getService()
-                      isBound = true
-                      updateUIFromServiceState()
-                  }
-
-                  override fun onServiceDisconnected(arg0: ComponentName) {
-                      isBound = false
-                  }
-              }
-
-              private val stateReceiver = object : BroadcastReceiver() {
-                  override fun onReceive(context: Context?, intent: Intent?) {
-                      updateUIFromServiceState()
-                  }
-              }
-
-              override fun onCreate(savedInstanceState: Bundle?) {
-                  super.onCreate(savedInstanceState)
-                  setContentView(R.layout.activity_main)
-
-                  window.statusBarColor = Color.parseColor("#080808")
-                  window.navigationBarColor = Color.parseColor("#080808")
-
-                  setupViews()
-                  setupAnimations()
-                  setupButtons()
-                  setupSocketConnection()
-
-                  val intent = Intent(this, AudioService::class.java)
-                  bindService(intent, connection, Context.BIND_AUTO_CREATE)
-
-                  val filter = IntentFilter("com.example.audiostreamer.STATE_CHANGED")
-                  registerReceiver(stateReceiver, filter, RECEIVER_EXPORTED)
-              }
-
-              private fun setupViews() {
-                  topBar = findViewById(R.id.topBar)
-                  btnToggleChat = findViewById(R.id.btnToggleChat)
-                  recordCard = findViewById(R.id.recordCard)
-                  chatPanel = findViewById(R.id.chatPanel)
-                  playerCard = findViewById(R.id.playerCard)
-                  emojiContainer = findViewById(R.id.emojiContainer)
-
-                  btnCloseChat = findViewById(R.id.btnCloseChat)
-                  etChatMessage = findViewById(R.id.etChatMessage)
-                  btnSendChatMessage = findViewById(R.id.btnSendChatMessage)
-                  chatScrollView = findViewById(R.id.chatScrollView)
-                  chatContainer = findViewById(R.id.chatContainer)
-
-                  btnPlay = findViewById(R.id.btnPlay)
-                  tvLiveStatus = findViewById(R.id.tvLiveStatus)
-                  tvStatus = findViewById(R.id.tvStatus)
-              }
-
-              private fun setupAnimations() {
-                  val vinylRecord: ConstraintLayout = findViewById(R.id.vinylRecord)
-                  recordAnimator = ObjectAnimator.ofFloat(vinylRecord, "rotation", 0f, 360f).apply {
-                      duration = 8000
-                      repeatCount = ObjectAnimator.INFINITE
-                      interpolator = LinearInterpolator()
-                  }
-              }
-
-              private fun setupButtons() {
-                  btnToggleChat.setOnClickListener {
-                      isChatVisible = !isChatVisible
-                      if (isChatVisible) {
-                          recordCard.visibility = View.GONE
-                          chatPanel.visibility = View.VISIBLE
-                          btnToggleChat.text = "Player"
-                      } else {
-                          chatPanel.visibility = View.GONE
-                          recordCard.visibility = View.VISIBLE
-                          btnToggleChat.text = "Chat"
-                      }
-                  }
-
-                  btnCloseChat.setOnClickListener {
-                      isChatVisible = false
-                      chatPanel.visibility = View.GONE
-                      recordCard.visibility = View.VISIBLE
-                      btnToggleChat.text = "Chat"
-                  }
-
-                  btnPlay.setOnClickListener {
-                      val service = audioService
-                      if (service != null) {
-                          if (service.isStreamPlaying) {
-                              service.pause()
-                          } else {
-                              val startIntent = Intent(this, AudioService::class.java)
-                              startForegroundService(startIntent)
-                              service.play()
-                          }
-                      }
-                  }
-
-                  btnSendChatMessage.setOnClickListener {
-                      val msg = etChatMessage.text.toString().trim()
-                      if (msg.isNotEmpty()) {
-                          sendChatMessageToServer(msg)
-                          etChatMessage.text.clear()
-                      }
-                  }
-
-                  findViewById<Button>(R.id.emoji_fire).setOnClickListener { sendEmoji("🔥") }
-                  findViewById<Button>(R.id.emoji_heart).setOnClickListener { sendEmoji("❤️") }
-                  findViewById<Button>(R.id.emoji_hundred).setOnClickListener { sendEmoji("💯") }
-                  findViewById<Button>(R.id.emoji_cool).setOnClickListener { sendEmoji("😎") }
-                  findViewById<Button>(R.id.emoji_star).setOnClickListener { sendEmoji("⭐") }
-              }
-
-              private fun setupSocketConnection() {
-                  try {
-                      val opts = IO.Options().apply {
-                          transports = arrayOf("websocket")
-                      }
-                      mSocket = IO.socket("https://herbdout.radio12345.com/", opts).apply {
-                          on(Socket.EVENT_CONNECT) {
-                              runOnUiThread {
-                                  addSystemMessageToUI("Connected to chat server.")
-                              }
-                          }
-                          on(Socket.EVENT_CONNECT_ERROR) {
-                              runOnUiThread {
-                                  addSystemMessageToUI("Connect error.")
-                              }
-                          }
-                          on("chat-message") { args ->
-                              if (args.isNotEmpty()) {
-                                  val data = args[0] as? JSONObject
-                                  if (data != null) {
-                                      runOnUiThread {
-                                          val sender = data.optString("username", "Anonymous")
-                                          val msg = data.optString("text", "")
-                                          addChatMessageToUI(sender, msg)
-                                      }
-                                  }
-                              }
-                          }
-                          on("new-emoji") { args ->
-                              if (args.isNotEmpty()) {
-                                  val data = args[0] as? JSONObject
-                                  if (data != null) {
-                                      val emoji = data.optString("emoji", "🔥")
-                                      val sender = data.optString("username", "Anonymous")
-                                      val avatar = data.optString("avatar", "")
-                                      runOnUiThread {
-                                          showFloatingEmoji(emoji, sender, avatar)
-                                      }
-                                  }
-                              }
-                          }
-                          connect()
-                      }
-                  } catch (e: Exception) {
-                      e.printStackTrace()
-                      addSystemMessageToUI("Socket initialization failed.")
-                  }
-              }
-
-              private fun sendChatMessageToServer(text: String) {
-                  var username = "Listener"
-                  var avatar = ""
-
-                  try {
-                      val auth = FirebaseAuth.getInstance()
-                      val user = auth.currentUser
-                      if (user != null) {
-                          username = user.displayName ?: "Listener"
-                          avatar = user.photoUrl?.toString() ?: ""
-                      }
-                  } catch (e: Exception) {
-                      e.printStackTrace()
-                  }
-
-                  val msgObj = JSONObject().apply {
-                      put("username", username)
-                      put("text", text)
-                      put("avatar", avatar)
-                  }
-                  mSocket?.emit("chat-message", msgObj)
-                  addChatMessageToUI("You ($username)", text)
-              }
-
-              private fun sendEmoji(emoji: String) {
-                  var username = "Listener"
-                  var avatar = ""
-
-                  try {
-                      val auth = FirebaseAuth.getInstance()
-                      val user = auth.currentUser
-                      if (user != null) {
-                          username = user.displayName ?: "Listener"
-                          avatar = user.photoUrl?.toString() ?: ""
-                      }
-                  } catch (e: Exception) {
-                      e.printStackTrace()
-                  }
-
-                  val emojiObj = JSONObject().apply {
-                      put("username", username)
-                      put("emoji", emoji)
-                      put("avatar", avatar)
-                  }
-                  mSocket?.emit("send-emoji", emojiObj)
-                  showFloatingEmoji(emoji, username, avatar)
-              }
-
-              private fun showFloatingEmoji(emoji: String, username: String, avatar: String) {
-                  runOnUiThread {
-                      val badgeView = TextView(this).apply {
-                          text = "$username: $emoji"
-                          setTextColor(Color.WHITE)
-                          setTextSize(14f)
-                          setTypeface(null, android.graphics.Typeface.BOLD)
-                          setBackgroundResource(R.drawable.reaction_badge_bg)
-                          setPadding(24, 12, 24, 12)
-                      }
-
-                      val badgeParams = android.widget.FrameLayout.LayoutParams(
-                          android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
-                          android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
-                      )
-                      badgeView.layoutParams = badgeParams
-                      emojiContainer.addView(badgeView)
-
-                      val randomWidth = emojiContainer.width - 250
-                      val startX = if (randomWidth > 0) Random().nextInt(randomWidth).toFloat() + 50f else 50f
-                      val startY = emojiContainer.height.toFloat() - 100f
-
-                      badgeView.x = startX
-                      badgeView.y = startY
-
-                      val deltaY = 600f
-                      val animY = ObjectAnimator.ofFloat(badgeView, "translationY", startY, startY - deltaY)
-                      val animAlpha = ObjectAnimator.ofFloat(badgeView, "alpha", 1.0f, 0.0f)
-
-                      android.animation.AnimatorSet().apply {
-                          playTogether(animY, animAlpha)
-                          duration = 3000
-                          addListener(object : android.animation.Animator.AnimatorListener {
-                              override fun onAnimationStart(animation: android.animation.Animator) {}
-                              override fun onAnimationEnd(animation: android.animation.Animator) {
-                                  emojiContainer.removeView(badgeView)
-                              }
-                              override fun onAnimationCancel(animation: android.animation.Animator) {}
-                              override fun onAnimationRepeat(animation: android.animation.Animator) {}
-                          })
-                          start()
-                      }
-                  }
-              }
-
-              private fun addChatMessageToUI(sender: String, text: String) {
-                  val bubbleLayout = LinearLayout(this).apply {
-                      orientation = LinearLayout.VERTICAL
-                      setBackgroundColor(Color.parseColor("#121212"))
-                      setPadding(16, 12, 16, 12)
-                      val layoutParams = LinearLayout.LayoutParams(
-                          LinearLayout.LayoutParams.MATCH_PARENT,
-                          LinearLayout.LayoutParams.WRAP_CONTENT
-                      ).apply {
-                          setMargins(0, 0, 0, 16)
-                      }
-                      this.layoutParams = layoutParams
-                  }
-
-                  val tvSender = TextView(this).apply {
-                      this.text = sender
-                      setTextColor(Color.parseColor("#5EFF00"))
-                      setTextSize(12f)
-                      setTypeface(null, android.graphics.Typeface.BOLD)
-                      val params = LinearLayout.LayoutParams(
-                          LinearLayout.LayoutParams.WRAP_CONTENT,
-                          LinearLayout.LayoutParams.WRAP_CONTENT
-                      )
-                      this.layoutParams = params
-                  }
-
-                  val tvText = TextView(this).apply {
-                      this.text = text
-                      setTextColor(Color.WHITE)
-                      setTextSize(14f)
-                      val params = LinearLayout.LayoutParams(
-                          LinearLayout.LayoutParams.MATCH_PARENT,
-                          LinearLayout.LayoutParams.WRAP_CONTENT
-                      ).apply {
-                          topMargin = 4
-                      }
-                      this.layoutParams = params
-                  }
-
-                  bubbleLayout.addView(tvSender)
-                  bubbleLayout.addView(tvText)
-                  chatContainer.addView(bubbleLayout)
-
-                  chatScrollView.post {
-                      chatScrollView.fullScroll(ScrollView.FOCUS_DOWN)
-                  }
-              }
-
-              private fun addSystemMessageToUI(msg: String) {
-                  val tvSystem = TextView(this).apply {
-                      text = msg
-                      setTextColor(Color.parseColor("#888888"))
-                      setTextSize(12f)
-                      val params = LinearLayout.LayoutParams(
-                          LinearLayout.LayoutParams.MATCH_PARENT,
-                          LinearLayout.LayoutParams.WRAP_CONTENT
-                      ).apply {
-                          setMargins(0, 0, 0, 12)
-                      }
-                      layoutParams = params
-                  }
-                  chatContainer.addView(tvSystem)
-              }
-
-              private fun updateUIFromServiceState() {
-                  val service = audioService
-                  if (service != null && isBound) {
-                      if (service.isStreamPlaying) {
-                          btnPlay.text = "Disconnect"
-                          btnPlay.isEnabled = true
-                          tvLiveStatus.text = "●  STREAM ONLINE"
-                          tvLiveStatus.setTextColor(Color.parseColor("#5EFF00"))
-                          tvStatus.text = "Now connected to Herbdout Radio\\nEnjoy the live stream broadcast!"
-                          tvStatus.setTextColor(Color.parseColor("#5EFF00"))
-
-                          if (!recordAnimator.isRunning) {
-                              recordAnimator.start()
-                          }
-                      } else if (service.isConnecting) {
-                          btnPlay.text = "Connecting"
-                          btnPlay.isEnabled = false
-                          tvLiveStatus.text = "●  CONNECTING..."
-                          tvLiveStatus.setTextColor(Color.parseColor("#FFD700"))
-                          tvStatus.text = "Buffering broadcast audio, please hold..."
-                          tvStatus.setTextColor(Color.parseColor("#FFD700"))
-
-                          if (recordAnimator.isRunning) {
-                              recordAnimator.cancel()
-                          }
-                      } else if (service.isError) {
-                          btnPlay.text = "Listen"
-                          btnPlay.isEnabled = true
-                          tvLiveStatus.text = "  OFFLINE"
-                          tvLiveStatus.setTextColor(Color.parseColor("#888888"))
-                          tvStatus.text = "Radio is not broadcasting right now.\\nPlease try again later."
-                          tvStatus.setTextColor(Color.parseColor("#EF4444"))
-
-                          if (recordAnimator.isRunning) {
-                              recordAnimator.cancel()
-                          }
-                      } else {
-                          btnPlay.text = "Listen"
-                          btnPlay.isEnabled = true
-                          tvLiveStatus.text = "  OFFLINE"
-                          tvLiveStatus.setTextColor(Color.parseColor("#888888"))
-                          tvStatus.text = "Press Listen to connect."
-                          tvStatus.setTextColor(Color.parseColor("#888888"))
-
-                          if (recordAnimator.isRunning) {
-                              recordAnimator.cancel()
-                          }
-                      }
-                  }
-              }
-
-              override fun onResume() {
-                  super.onResume()
-                  updateUIFromServiceState()
-                  mSocket?.connect()
-              }
-
-              override fun onDestroy() {
-                  if (isBound) {
-                      unbindService(connection)
-                      isBound = false
-                  }
-                  try {
-                      unregisterReceiver(stateReceiver)
-                  } catch (e: Exception) {
-                      // Ignored
-                  }
-                  mSocket?.disconnect()
-                  super.onDestroy()
-              }
-          }
-          EOF
-
-      - name: Build Android APK
-        run: |
-          mkdir -p gradle/wrapper
-          cat << 'EOF' > gradle/wrapper/gradle-wrapper.properties
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.5-bin.zip
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
-          EOF
-          
-          # Use local build tools inside runner wrapper to compile from scratch
-          gradle clean assembleDebug --stacktrace
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/app-debug-unsigned.apk || app/build/outputs/apk/debug/app-debug.apk || app/build/outputs/apk/debug/*.apk
