@@ -1,31 +1,3 @@
-Here is the complete, unified .github/workflows/build.yml configuration file.
-Since you are on a computer, we have merged all split parts back into a single,
-cohesive file [1].
-
-This version contains all of your requested features:
-
-1.  Low-Resource Background Play: Run natively in Kotlin using a background
-    AudioService Foreground Service with CPU WakeLock to play smoothly when
-    minimized or screen-off [1].
-2.  Stable OS-Level Buffering: Native MediaPlayer streaming eliminates
-    WebView-related audio stuttering and crackling, using minimal system
-    resources.
-3.  Dynamic Stream URL Scraper: Background scraper in both AudioService and
-    StreamCheckWorker to query https://herbdout.radio12345.com/ on launch and
-    play the resolved stream URL [4].
-4.  Permanent Settings Saving: Username is entered inside a native slide-out
-    settings drawer and saved directly using Android's native SharedPreferences,
-    avoiding any startup screens.
-5.  Real-time Chat & Sockets Sync: Native Socket.IO connection monitors your
-    central backend, dynamically updating the status header between • LIVE and •
-    OFF AIR, syncing live chat history, and animating custom name-emoji badges
-    (Slayerkodi: 🔥) [1, 4].
-
-Complete Consolidated build.yml File
-
-Select the entire block below, delete any existing text inside your build.yml
-file, and paste this in:
-
 name: Build Android APK from Zip
 
 on:
@@ -1803,11 +1775,14 @@ jobs:
                 mSocket?.off("new-emoji")
             }
         }""")
+```
 
-PART 7: Foreground Audio Playback Service (Part 2 of 2)
+---
 
-Paste this block directly underneath the end of Part 6.
+### PART 7: Foreground Audio Playback Service (Part 2 of 2)
+*Paste this block directly underneath the end of **Part 6**.*
 
+```yaml
     # Appends the second half of the Foreground AudioService to complete the file (Fixes compile issues)
     - name: Create AudioService.kt (Part 2 of 2)
       shell: python
@@ -1922,11 +1897,14 @@ Paste this block directly underneath the end of Part 6.
                 stopPlaying()
             }
         }""")
+```
 
-PART 8: Native Android UI Controller (MainActivity.kt - Part 1 of 2)
+---
 
-Paste this block directly underneath the end of Part 7.
+### PART 8: Native Android UI Controller (MainActivity.kt - Part 1 of 2)
+*Paste this block directly underneath the end of **Part 7**.*
 
+```yaml
     # Overwrites MainActivity.kt with settings drawer, chat bindings, and dynamic status sync (First Half)
     - name: Force Overwrite MainActivity.kt (Part 1 of 2)
       shell: python
@@ -2201,11 +2179,14 @@ Paste this block directly underneath the end of Part 7.
                 }
             }
         """)
+```
 
-PART 9: UI Controller (MainActivity.kt - Part 2 of 2) & Gradle Compilation
+---
 
-Paste this final block directly underneath the end of Part 8.
+### PART 9: UI Controller (MainActivity.kt - Part 2 of 2) & Gradle Compilation
+*Paste this final block directly underneath the end of **Part 8**.*
 
+```yaml
     # Appends the second half of the UI layout controller and triggers compiling of .apk
     - name: Force Overwrite MainActivity.kt (Part 2 of 2)
       shell: python
