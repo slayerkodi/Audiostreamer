@@ -13,6 +13,29 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
+    - name: Unzip Project Files
+      run: |
+        ZIP_FILE=$(find . -maxdepth 1 -iname "audiostreamer.zip" -print -quit)
+        if [ -n "$ZIP_FILE" ]; then
+          echo "Found zip file: $ZIP_FILE"
+          unzip -o "$ZIP_FILE" -d temp_unzip
+          
+          NESTED_DIR=$(find temp_unzip -maxdepth 1 -type d -iname "audiostreamer" -print -quit)
+          if [ -n "$NESTED_DIR" ]; then
+            echo "Moving files from nested directory: $NESTED_DIR"
+            cp -r "$NESTED_DIR"/* . 2>/dev/null || true
+            cp -r "$NESTED_DIR"/.[a-zA-Z0-9]* . 2>/dev/null || true
+          else
+            echo "Moving files from zip root..."
+            cp -r temp_unzip/* . 2>/dev/null || true
+            cp -r temp_unzip/.[a-zA-Z0-9]* . 2>/dev/null || true
+          fi
+          rm -rf temp_unzip
+        else
+          echo "Error: Audiostreamer.zip not found!"
+          exit 1
+        fi
+
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
@@ -23,7 +46,8 @@ jobs:
       uses: gradle/actions/setup-gradle@v4
       with:
         gradle-version: '8.9'
-        # Overwrites app/build.gradle to add WorkManager, Socket.io, and Firebase Auth dependencies
+
+    # Overwrites app/build.gradle to add WorkManager, Socket.io, and Firebase Auth dependencies
     - name: Force Overwrite app/build.gradle
       shell: python
       run: |
@@ -86,7 +110,8 @@ jobs:
             f.write("""<resources>
             <string name="app_name">Herbdout Radio</string>
         </resources>""")
-        # Configures the colors file for the custom launcher background
+
+    # Configures the colors file for the custom launcher background
     - name: Create colors.xml
       shell: python
       run: |
@@ -185,7 +210,8 @@ jobs:
             </application>
 
         </manifest>""")
-        # Automatically creates/fixes the AndroidX settings
+
+    # Automatically creates/fixes the AndroidX settings
     - name: Configure AndroidX Settings
       run: |
         echo "android.useAndroidX=true" > gradle.properties
@@ -235,8 +261,8 @@ jobs:
             <stroke android:width="1dp" android:color="#335EFF00" />
         </shape>""")
 
-    # Overwrites the UI layout with the OLED design (First Half: Top bar and vinyl card)
-    - name: Force Overwrite activity_main.xml (Part 1 of 2)
+    # Overwrites the UI layout adding transparent floating emoji canvas, designated reaction buttons, and Live Chat Panel
+    - name: Force Overwrite activity_main.xml
       shell: python
       run: |
         import os
@@ -249,7 +275,7 @@ jobs:
             xmlns:tools="http://schemas.android.com/tools"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="#000000"
+            android:background="#080808"
             tools:context=".MainActivity">
 
             <!-- Top Branding Bar -->
@@ -500,13 +526,7 @@ jobs:
 
                 </androidx.constraintlayout.widget.ConstraintLayout>
             </com.google.android.material.card.MaterialCardView>
-        """)
-        # Appends the second half of the UI layout with the Slide-out Panels & Emojis Canvas
-    - name: Force Overwrite activity_main.xml (Part 2 of 2)
-      shell: python
-      run: |
-        with open("app/src/main/res/layout/activity_main.xml", "a") as f:
-            f.write("""
+
             <!-- Slide-out Live Chat Panel (Right) -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/chatPanel"
@@ -874,7 +894,7 @@ jobs:
                     
                     if (connection.responseCode == 200) {
                         val html = connection.inputStream.bufferedReader().use { it.readText() }
-                        val regex = "https://[a-zA-Z0-9.-]+:[0-9]+/[a-zA-Z0-9_.-]+".toRegex()
+                        val regex = "https?://[a-zA-Z0-9.-]+:[0-9]+/[a-zA-Z0-9_.-]+".toRegex()
                         val match = regex.find(html)
                         if (match != null) {
                             activeUrl = match.value
@@ -935,12 +955,14 @@ jobs:
                     // Ignored on device restriction settings
                 }
             }
-private fun createNotificationChannel() {
+
+            private fun createNotificationChannel() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     val name = "Live Notifications"
                     val descriptionText = "Notifies you when Herbdout Radio starts broadcasting"
                     val importance = NotificationManager.IMPORTANCE_DEFAULT
-                    val channel = NotificationChannel(channelId, name, importance).apply {description = descriptionText
+                    val channel = NotificationChannel(channelId, name, importance).apply {
+                        description = descriptionText
                     }
                     val notificationManager: NotificationManager =
                         applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -948,8 +970,9 @@ private fun createNotificationChannel() {
                 }
             }
         }""")
-        # Creates the first half of the Foreground AudioService
-    - name: Create AudioService.kt (Part 1 of 2)
+
+    # Creates the Foreground AudioService for multitasking and screen off playback
+    - name: Create AudioService.kt
       shell: python
       run: |
         import os
@@ -1076,13 +1099,7 @@ private fun createNotificationChannel() {
                     }
                 }.start()
             }
-        """)
-        # Appends the second half of the Foreground AudioService to complete the file (Fixes compile issues)
-    - name: Create AudioService.kt (Part 2 of 2)
-      shell: python
-      run: |
-        with open("app/src/main/java/com/example/audiostreamer/AudioService.kt", "a") as f:
-            f.write("""
+
             private fun fetchActiveStreamUrl(): String {
                 var activeUrl = "http://uk18freenew.listen2myradio.com:5784/stream"
                 try {
@@ -1094,7 +1111,7 @@ private fun createNotificationChannel() {
                     
                     if (connection.responseCode == 200) {
                         val html = connection.inputStream.bufferedReader().use { it.readText() }
-                        val regex = "https://[a-zA-Z0-9.-]+:[0-9]+/[a-zA-Z0-9_.-]+".toRegex()
+                        val regex = "https?://[a-zA-Z0-9.-]+:[0-9]+/[a-zA-Z0-9_.-]+".toRegex()
                         val match = regex.find(html)
                         if (match != null) {
                             activeUrl = match.value
@@ -1191,8 +1208,10 @@ private fun createNotificationChannel() {
                 stopPlaying()
             }
         }""")
-        # Overwrites MainActivity.kt with settings drawer, chat bindings, and dynamic status sync (First Half)
-    - name: Force Overwrite MainActivity.kt (Part 1 of 2)
+
+    # Overwrites MainActivity.kt to bind to the Foreground AudioService and handle UI changes
+    # Backslashes are escaped (\\n) so Python writes it to the Kotlin file correctly as \n
+    - name: Force Overwrite MainActivity.kt
       shell: python
       run: |
         import os
@@ -1464,13 +1483,7 @@ private fun createNotificationChannel() {
                     e.printStackTrace()
                 }
             }
-        """)
-        # Appends the second half of the UI layout controller and triggers compiling of .apk
-    - name: Force Overwrite MainActivity.kt (Part 2 of 2)
-      shell: python
-      run: |
-        with open("app/src/main/java/com/example/audiostreamer/MainActivity.kt", "a") as f:
-            f.write("""
+
             private fun setupEmojiButtons() {
                 findViewById<Button>(R.id.btnEmojiHeart).setOnClickListener { sendEmoji("❤️") }
                 findViewById<Button>(R.id.btnEmojiFire).setOnClickListener { sendEmoji("🔥") }
